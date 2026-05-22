@@ -408,6 +408,11 @@ async function bootstrap() {
   const r = await API('/api/me');
   const j = await r.json();
   if (j.user) {
+    // 若 sessionStorage 没 sign_key（关 tab 重开 / 硬刷后丢失但 cookie 还有效），
+    // 用服务端回传的补上；否则保持本地缓存（避免被旧值覆盖）
+    if (j.sign_key && !sessionStorage.getItem('sign_key')) {
+      sessionStorage.setItem('sign_key', j.sign_key);
+    }
     show('main');
     await Promise.all([loadStatus(), loadConfig(), loadPrompt(), loadLogFiles(), loadLlmKeys(), loadHealth()]);
     if (logFiles.length > 0) {

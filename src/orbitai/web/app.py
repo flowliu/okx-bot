@@ -346,7 +346,13 @@ def api_logout(request: Request) -> JSONResponse:
 
 @app.get("/api/me")
 def api_me(request: Request) -> JSONResponse:
-    return JSONResponse({"user": request.session.get("user")})
+    """已登录的话顺带把 sign_key 回传一份，方便前端关 tab 重开或
+    sessionStorage 被清后无感恢复（cookie 仍有效）。"""
+    user = request.session.get("user")
+    return JSONResponse({
+        "user": user,
+        "sign_key": request.session.get("sign_key") if user else None,
+    })
 
 
 # ---------- 状态 / 启停 ----------
