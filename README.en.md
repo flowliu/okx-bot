@@ -23,6 +23,39 @@
 
 ---
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/login.png"     alt="Login"     width="450"/></td>
+    <td><img src="docs/screenshots/dashboard.png" alt="Dashboard" width="450"/></td>
+  </tr>
+  <tr>
+    <td align="center">Login · bilingual switch · risk warning</td>
+    <td align="center">Dashboard · live SSE log stream</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/stats.png"  alt="Stats"  width="450"/></td>
+    <td><img src="docs/screenshots/prompt.png" alt="Prompt" width="450"/></td>
+  </tr>
+  <tr>
+    <td align="center">Stats · 6 summary cards + line chart</td>
+    <td align="center">AI Prompt · hot-edit online</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/params.png" alt="Params" width="450"/></td>
+    <td><img src="docs/screenshots/reset.png"  alt="Reset"  width="450"/></td>
+  </tr>
+  <tr>
+    <td align="center">Params · basic / LLM / keys</td>
+    <td align="center">One-click reset · cancel + close + wipe</td>
+  </tr>
+</table>
+
+> Source files live in [`docs/screenshots/`](docs/screenshots/).
+
+---
+
 ## ✨ Features
 
 - 🤖 **Multi-LLM decision engine** — DeepSeek / OpenAI / Anthropic / Gemini / Qwen / Moonshot / GLM, switch at runtime

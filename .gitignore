@@ -35,3 +35,7 @@ prompts/*.corrupt.*
 .idea/
 .vscode/
 *.swp
+
+# 打包/归档
+*.zip
+*.tar.gz

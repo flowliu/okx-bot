@@ -23,6 +23,39 @@
 
 ---
 
+## 📸 截图
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/login.png"     alt="登录页"   width="450"/></td>
+    <td><img src="docs/screenshots/dashboard.png" alt="主控台"   width="450"/></td>
+  </tr>
+  <tr>
+    <td align="center">登录页 · 双语切换 · 风险提示</td>
+    <td align="center">主控台 · 实时日志 SSE</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/stats.png"  alt="收益统计" width="450"/></td>
+    <td><img src="docs/screenshots/prompt.png" alt="Prompt"  width="450"/></td>
+  </tr>
+  <tr>
+    <td align="center">统计 · 6 张汇总卡片 + 折线图</td>
+    <td align="center">AI Prompt 在线热编辑</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/params.png" alt="参数配置" width="450"/></td>
+    <td><img src="docs/screenshots/reset.png"  alt="重置流程" width="450"/></td>
+  </tr>
+  <tr>
+    <td align="center">参数 · 基础 / 大模型 / 密钥</td>
+    <td align="center">一键重置 · 撤单 + 平仓 + 清 DB</td>
+  </tr>
+</table>
+
+> 截图源文件位于 [`docs/screenshots/`](docs/screenshots/)。
+
+---
+
 ## ✨ 特性
 
 - 🤖 **多模型 AI 决策**：支持 DeepSeek / OpenAI / Anthropic / Gemini / Qwen / Moonshot / GLM 七大厂商，运行时一键切换
