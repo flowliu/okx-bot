@@ -71,6 +71,20 @@ python -c "import secrets;print(secrets.token_hex(32))"
 
 ### 4. 启动 Web 控制台
 
+**推荐用 helper 脚本**（自动处理 venv + .env 加载 + 后台运行）：
+
+```bash
+./bot.sh setup      # 首次：创建 venv + 装依赖
+./bot.sh start      # 后台启动
+./bot.sh status     # 看状态
+./bot.sh logs       # 跟随日志
+./bot.sh stop       # 停止
+./bot.sh restart    # 重启
+./bot.sh run        # 前台启动（开发，Ctrl+C 退出）
+```
+
+或手动：
+
 ```bash
 set -a; source .env; set +a
 python -m uvicorn webui:app --host 0.0.0.0 --port 8765

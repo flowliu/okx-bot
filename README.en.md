@@ -71,6 +71,20 @@ python -c "import secrets;print(secrets.token_hex(32))"
 
 ### 4. Launch the Web Console
 
+**Recommended — use the helper script** (handles venv + .env loading + background):
+
+```bash
+./bot.sh setup      # First time: create venv + install deps
+./bot.sh start      # Start in background
+./bot.sh status     # Check status
+./bot.sh logs       # Tail logs
+./bot.sh stop       # Stop
+./bot.sh restart    # Restart
+./bot.sh run        # Foreground (dev mode, Ctrl+C to exit)
+```
+
+Or manually:
+
 ```bash
 set -a; source .env; set +a
 python -m uvicorn webui:app --host 0.0.0.0 --port 8765
