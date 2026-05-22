@@ -165,17 +165,38 @@ def _build_grid_prices(center: float) -> list[tuple[int, float]]:
 
 
 def _calc_sz_per_grid(center: float) -> float:
-    """单格张数 = 总名义价值 / 格数 / 张面值 / 中心价
-    总名义价值 = 总资金 * 杠杆
-    """
+    """机械网格：单格张数 = 总名义 / GRID_COUNT。"""
     notional_per_grid = config.TOTAL_USDT * config.LEVERAGE / config.GRID_COUNT
     eth_per_grid = notional_per_grid / center
     sz = eth_per_grid / float(_CT_VAL)
-    # 至少满足最小张数
     if sz < float(_MIN_SZ):
         raise ValueError(
             f"单格张数 {sz:.4f} 低于最小张数 {_MIN_SZ}。"
             f"请增加 TOTAL_USDT 或减少 GRID_COUNT。"
+        )
+    return float(_round_sz(sz))
+
+
+def _calc_sz_per_ai_order(center: float) -> float:
+    """AI 模式：每对包含 open + close 两笔单 → 分母用 max_orders × 2。
+
+    例：TOTAL_USDT=2000 杠杆=2 max_orders=20 → 名义 / 单 = 2*2000/(20*2) = 100 USDT。
+    避免实际名义膨胀到机械网格 sz 的 2 倍导致保证金不足 (51008)。
+
+    再额外乘 0.6 保留缓冲：AI 经常一对挂在区间内同时存在 open 单 + close 单
+    （持仓被锁），且历史 slot 的 close 单不会立刻撤；缓冲可吸收叠加。
+    """
+    max_orders = max(1, int(config_loader.get("AI_MAX_ORDERS_PER_CALL") or 20))
+    leverage = max(1, int(config_loader.get("LEVERAGE") or 1))
+    total_usdt = float(config_loader.get("TOTAL_USDT") or 0)
+    BUFFER = 0.6
+    notional_per_order = total_usdt * leverage / (max_orders * 2) * BUFFER
+    eth_per_order = notional_per_order / center
+    sz = eth_per_order / float(_CT_VAL)
+    if sz < float(_MIN_SZ):
+        raise ValueError(
+            f"AI 单订单张数 {sz:.4f} 低于最小张数 {_MIN_SZ}。"
+            f"请增加 TOTAL_USDT 或减少 AI_MAX_ORDERS_PER_CALL。"
         )
     return float(_round_sz(sz))
 
@@ -766,8 +787,16 @@ def _ai_place_orders_from_advice(advice, last_px: float, sz: float):
             else:
                 ord_id = _place_open_raw(o.side, o.open_price, sz)
         except Exception as e:
-            logger.error(f"[AI] 挂 open 单失败 {o}: {e}")
+            err = str(e)
+            logger.error(f"[AI] 挂 open 单失败 {o}: {err}")
             okx_failed += 1
+            # 保证金不足：本轮没必要继续撞，撞 N 次得到 N 次拒绝
+            if "51008" in err or "Insufficient" in err:
+                logger.error(
+                    f"⚠ 51008 USDT 保证金不足，本轮提前中止；建议检查持仓/挂单/杠杆/单笔 sz "
+                    f"(当前 sz={sz})。后续轮继续尝试。"
+                )
+                break
             continue
         # market 单 open_price 存最近成交价做参考
         open_px_to_store = last_px if o.order_type == "market" else o.open_price
@@ -906,8 +935,10 @@ def ai_main_loop():
     sz = None
     while _running and sz is None:
         try:
-            sz = _calc_sz_per_grid(_get_last_price())
-            logger.info(f"单 slot 张数={sz}")
+            sz = _calc_sz_per_ai_order(_get_last_price())
+            logger.info(f"AI 单订单张数={sz} "
+                        f"(资金={config.TOTAL_USDT}U 杠杆={config.LEVERAGE}x "
+                        f"max_orders={config_loader.get('AI_MAX_ORDERS_PER_CALL')})")
         except Exception as e:
             logger.warning(f"启动初始化拉价失败,{config_loader.get('POLL_INTERVAL')}s 后重试: {e}")
             time.sleep(config_loader.get('POLL_INTERVAL'))
