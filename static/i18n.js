@@ -1,0 +1,319 @@
+// Copyright (c) 2026 D.L <103242127@qq.com>
+// Licensed under the MIT License. See LICENSE file in the project root.
+//
+// OKX Bot Console — i18n
+// Languages: zh-CN / en-US. Add new keys here, then mark elements with
+// data-i18n="key" (textContent) or data-i18n-placeholder="key" (input/textarea).
+// Dynamic text in JS: call t('key').
+
+window.I18N = {
+  'zh-CN': {
+    _label: '中文',
+    // App / page
+    app_title: 'OrbitAI',
+    app_subtitle: 'AI 驱动的永续合约智能网格交易机器人 — OKX',
+    footer_suffix: '让 AI 应用更有价值',
+    // Login
+    login_user_ph: '用户名',
+    login_pass_ph: '密码',
+    login_btn: '登录',
+    login_failed: '登录失败',
+    login_disclaimer_title: '⚠ 风险提示',
+    login_disclaimer_body: '本程序仅供技术学习、研究与交流，不构成任何投资建议。加密货币交易具有重大风险，请先用 OKX 模拟盘充分测试。使用即视为接受全部风险与责任。',
+    // Header
+    status_checking: '检测中…',
+    status_running: '运行中',
+    status_stopped: '未运行',
+    btn_start: '启动',
+    btn_running: '运行中',
+    btn_stop: '停止',
+    btn_reset: '重置',
+    btn_refresh: '刷新',
+    btn_logout: '登出',
+    reset_tip_when_running: '请先停止 Bot',
+    reset_tip_idle: '撤所有挂单 + 市价平仓 + 清 grid.db',
+    // Tabs
+    tab_logs: '日志',
+    tab_stats: '统计',
+    tab_config: '参数',
+    tab_prompt: 'Prompt',
+    // Logs tab
+    log_file_label: '文件：',
+    log_autoscroll: '自动滚到底',
+    log_load_older: '⬆ 向上加载更多',
+    log_loading: '加载中…',
+    log_no_file: '（暂无日志文件）',
+    log_size_loaded: (size, loaded, more) => `${size} · 已加载 ${loaded}${more ? ' · 上方可继续加载' : ''}`,
+    log_all_loaded: '已全部加载',
+    log_read_fail: '读取失败',
+    log_switched_to: (name) => `[日志切换至 ${name}]`,
+    log_waiting: '[日志文件尚未生成]',
+    log_found: (name) => `[找到日志 ${name}]`,
+    // Stats tab
+    stats_range: '范围：',
+    stats_range_today: '今天',
+    stats_range_2d: '最近 2 天',
+    stats_range_3d: '最近 3 天',
+    stats_range_7d: '最近 7 天',
+    stats_range_30d: '最近 30 天',
+    stats_range_90d: '最近 90 天',
+    stats_range_365d: '最近 365 天',
+    stats_sync_btn: '立即同步',
+    stats_syncing: '同步中…',
+    stats_sync_from_okx: '正在从 OKX 拉取…',
+    stats_sync_fail: '同步失败',
+    stats_data_source_hint: '数据来自本地 stats.db（后台每 10 分钟从 OKX 同步最近 7 天）。',
+    stats_loading: '加载中…',
+    stats_total_trades: '总笔数 / 平仓',
+    stats_total_pnl: '总盈亏 (USDT)',
+    stats_total_fee: '总手续费 (USDT)',
+    stats_net_pnl: '净收益 (USDT)',
+    stats_col_date: '日期',
+    stats_col_trades: '笔数',
+    stats_col_closes: '平仓',
+    stats_col_pnl: '盈亏 (USDT)',
+    stats_col_fee: '手续费 (USDT)',
+    stats_col_net: '净收益 (USDT)',
+    stats_last_sync: (t) => '最近同步 ' + t,
+    stats_no_sync: '尚未同步',
+    stats_earliest: (d) => '本地最早 ' + d,
+    // Config tab
+    config_intro: '编辑参数后保存会写入 runtime_config.json，重启 Bot 才生效。',
+    config_basic_title: '基础配置',
+    config_ai_title: '大模型配置',
+    config_save_all_btn: '保存全部',
+    config_save_ok: (hint) => '✅ 已保存（' + (hint || '') + '）',
+    config_save_fail: (err) => '❌ ' + err,
+    // LLM keys
+    llm_panel_title: '大模型密钥',
+    llm_current: (label) => '当前：' + label,
+    llm_intro: '只展示当前选中厂商的密钥。修改上方「大模型配置 → AI_PROVIDER」会自动切换。密钥保存在本地 llm_keys.json（权限 600，不入 git）。',
+    llm_unknown_provider: (p) => `未知 provider：${p}`,
+    llm_default_model: '默认模型：',
+    llm_env_fallback: ' · 环境变量回退：',
+    llm_state_local: '已配置（本地）',
+    llm_state_env: (env) => `已配置（环境变量 ${env}）`,
+    llm_state_none: '未配置',
+    llm_input_ph_set: '已配置（输入新值覆盖）',
+    llm_input_ph_empty: '粘贴 API key',
+    llm_save_btn: '保存',
+    llm_clear_btn: '清除',
+    llm_saving: '保存中…',
+    llm_save_fail: '保存失败',
+    llm_save_need_key: '请填写 key',
+    llm_clear_confirm: (p, env) => `清除 ${p} 的本地 key？\n（若 .env 配置了 ${env} 仍可作为回退）`,
+    // Prompt tab
+    prompt_path_intro: 'AI 提示词（',
+    prompt_path_intro_after: '）。保存后下一轮 AI 调用立即生效，不需要重启。',
+    prompt_required_ph: '必需占位符：',
+    prompt_save_btn: '保存',
+    prompt_reload_btn: '重新加载',
+    prompt_save_ok: '✅ 已保存',
+    prompt_save_fail: '❌ ',
+    prompt_placeholders_title: '可用占位符',
+    prompt_placeholders_intro: '运行时由 ai_advisor._build_prompt 注入。标记为「必需」的占位符在保存校验时强制存在。',
+    prompt_col_name: '占位符',
+    prompt_col_type: '类型',
+    prompt_col_desc: '说明',
+    prompt_col_sample: '示例值',
+    prompt_table_footer: '<span class="text-rose-500">*</span> 必需 — 保存时会校验存在；其他占位符可选，未引用时会被静默丢弃。字面量 <span class="mono">{</span> / <span class="mono">}</span> 需写成 <span class="mono">{{</span> / <span class="mono">}}</span>（Python str.format 规则）。',
+    // Reset modal
+    reset_modal_title_running: '重置中…',
+    reset_modal_title_done: '重置完成',
+    reset_modal_title_fail: '重置失败',
+    reset_modal_status_running: '执行中',
+    reset_modal_status_ok: '✓ 完成',
+    reset_modal_status_fail: '✗ 失败',
+    reset_modal_close: '关闭',
+    reset_start_msg: '▶ 调用 reset.py，撤单 + 平仓可能耗时 5-30s，请耐心等待…',
+    reset_confirm: '⚠️ 确认重置？\n\n将执行：\n  1. 撤销 OKX 上所有该标的挂单\n  2. 市价平掉所有持仓\n  3. 清空 grid.db(trades 历史保留)\n\n此操作不可逆。',
+    reset_network_err: '网络错误：',
+    // Start/Stop confirms
+    stop_confirm: '确认停止 Bot？挂单会被自动撤销，持仓保留。',
+    start_fail: '启动失败',
+    stop_fail: '停止失败',
+    // Health banner
+    health_title: '⚠ 检测到配置文件异常',
+    health_init_btn: '初始化',
+    health_initing: '初始化中…',
+    health_unknown_err: '未知错误',
+    health_init_confirm_runtime: '将把 runtime_config.json 重置为空 overlay（损坏文件备份为 .corrupt.<ts>）。',
+    health_init_confirm_llm:     '将把 llm_keys.json 重置为空密钥库（损坏文件备份为 .corrupt.<ts>）。.env 里的环境变量回退不受影响。',
+    health_init_confirm_prompt:  '将把 prompts/scalp.txt 从 prompts/scalp.default.txt 还原（旧文件备份为 .bak.<ts>）。',
+    health_confirm_suffix: '\n\n确认继续？',
+    health_init_fail: '❌ ',
+    health_init_ok: (msg, backup) => '✅ ' + msg + (backup ? '\n备份：' + backup : ''),
+    health_init_done: '已完成',
+  },
+  'en-US': {
+    _label: 'English',
+    app_title: 'OrbitAI',
+    app_subtitle: 'AI-driven grid bot for OKX perpetual swaps',
+    footer_suffix: 'Make AI apps more valuable',
+    login_user_ph: 'Username',
+    login_pass_ph: 'Password',
+    login_btn: 'Sign in',
+    login_failed: 'Login failed',
+    login_disclaimer_title: '⚠ Risk Warning',
+    login_disclaimer_body: 'This software is for technical study, research and discussion only — NOT financial advice. Crypto trading carries substantial risk. Please test thoroughly on the OKX demo account first. By using this software you accept all risks and responsibility.',
+    status_checking: 'Checking…',
+    status_running: 'Running',
+    status_stopped: 'Stopped',
+    btn_start: 'Start',
+    btn_running: 'Running',
+    btn_stop: 'Stop',
+    btn_reset: 'Reset',
+    btn_refresh: 'Refresh',
+    btn_logout: 'Sign out',
+    reset_tip_when_running: 'Stop the bot first',
+    reset_tip_idle: 'Cancel all orders + market-close + wipe grid.db',
+    tab_logs: 'Logs',
+    tab_stats: 'Stats',
+    tab_config: 'Params',
+    tab_prompt: 'Prompt',
+    log_file_label: 'File:',
+    log_autoscroll: 'Auto-scroll',
+    log_load_older: '⬆ Load older',
+    log_loading: 'Loading…',
+    log_no_file: '(no log files yet)',
+    log_size_loaded: (size, loaded, more) => `${size} · loaded ${loaded}${more ? ' · scroll up to load more' : ''}`,
+    log_all_loaded: 'fully loaded',
+    log_read_fail: 'Failed to read',
+    log_switched_to: (name) => `[switched to ${name}]`,
+    log_waiting: '[log file not created yet]',
+    log_found: (name) => `[found log ${name}]`,
+    stats_range: 'Range:',
+    stats_range_today: 'Today',
+    stats_range_2d: 'Last 2 days',
+    stats_range_3d: 'Last 3 days',
+    stats_range_7d: 'Last 7 days',
+    stats_range_30d: 'Last 30 days',
+    stats_range_90d: 'Last 90 days',
+    stats_range_365d: 'Last 365 days',
+    stats_sync_btn: 'Sync now',
+    stats_syncing: 'Syncing…',
+    stats_sync_from_okx: 'Fetching from OKX…',
+    stats_sync_fail: 'Sync failed',
+    stats_data_source_hint: 'Data from local stats.db (background job syncs last 7 days from OKX every 10 min).',
+    stats_loading: 'Loading…',
+    stats_total_trades: 'Trades / Closes',
+    stats_total_pnl: 'Total P&L (USDT)',
+    stats_total_fee: 'Total Fee (USDT)',
+    stats_net_pnl: 'Net P&L (USDT)',
+    stats_col_date: 'Date',
+    stats_col_trades: 'Trades',
+    stats_col_closes: 'Closes',
+    stats_col_pnl: 'P&L (USDT)',
+    stats_col_fee: 'Fee (USDT)',
+    stats_col_net: 'Net (USDT)',
+    stats_last_sync: (t) => 'Last sync ' + t,
+    stats_no_sync: 'Not synced yet',
+    stats_earliest: (d) => 'Earliest local ' + d,
+    config_intro: 'Changes are saved to runtime_config.json and apply after the bot restarts.',
+    config_basic_title: 'Basic',
+    config_ai_title: 'LLM',
+    config_save_all_btn: 'Save all',
+    config_save_ok: (hint) => '✅ Saved (' + (hint || '') + ')',
+    config_save_fail: (err) => '❌ ' + err,
+    llm_panel_title: 'LLM Keys',
+    llm_current: (label) => 'Current: ' + label,
+    llm_intro: 'Only the selected provider is shown. Switching "LLM → AI_PROVIDER" above auto-updates this panel. Keys are stored locally in llm_keys.json (mode 600, gitignored).',
+    llm_unknown_provider: (p) => `Unknown provider: ${p}`,
+    llm_default_model: 'Default model: ',
+    llm_env_fallback: ' · Env fallback: ',
+    llm_state_local: 'Configured (local)',
+    llm_state_env: (env) => `Configured (env ${env})`,
+    llm_state_none: 'Not configured',
+    llm_input_ph_set: 'Configured (enter new value to overwrite)',
+    llm_input_ph_empty: 'Paste API key',
+    llm_save_btn: 'Save',
+    llm_clear_btn: 'Clear',
+    llm_saving: 'Saving…',
+    llm_save_fail: 'Save failed',
+    llm_save_need_key: 'Please enter a key',
+    llm_clear_confirm: (p, env) => `Clear local key for ${p}?\n(Env var ${env} will still fall back if set.)`,
+    prompt_path_intro: 'AI prompt template (',
+    prompt_path_intro_after: '). Saving takes effect on the next AI call — no restart needed.',
+    prompt_required_ph: 'Required placeholders:',
+    prompt_save_btn: 'Save',
+    prompt_reload_btn: 'Reload',
+    prompt_save_ok: '✅ Saved',
+    prompt_save_fail: '❌ ',
+    prompt_placeholders_title: 'Available placeholders',
+    prompt_placeholders_intro: 'Injected at runtime by ai_advisor._build_prompt. Items marked Required are enforced on save.',
+    prompt_col_name: 'Placeholder',
+    prompt_col_type: 'Type',
+    prompt_col_desc: 'Description',
+    prompt_col_sample: 'Example',
+    prompt_table_footer: '<span class="text-rose-500">*</span> Required — must be present on save. Other placeholders are optional. Literal <span class="mono">{</span> / <span class="mono">}</span> must be escaped as <span class="mono">{{</span> / <span class="mono">}}</span> (Python str.format).',
+    reset_modal_title_running: 'Resetting…',
+    reset_modal_title_done: 'Reset complete',
+    reset_modal_title_fail: 'Reset failed',
+    reset_modal_status_running: 'Running',
+    reset_modal_status_ok: '✓ Done',
+    reset_modal_status_fail: '✗ Failed',
+    reset_modal_close: 'Close',
+    reset_start_msg: '▶ Calling reset.py — canceling orders + closing positions may take 5–30s…',
+    reset_confirm: '⚠️ Confirm reset?\n\nThis will:\n  1. Cancel all open orders for this symbol on OKX\n  2. Market-close all positions\n  3. Wipe grid.db (trades history is preserved)\n\nThis cannot be undone.',
+    reset_network_err: 'Network error: ',
+    stop_confirm: 'Stop the bot? Open orders are auto-canceled; positions are kept.',
+    start_fail: 'Start failed',
+    stop_fail: 'Stop failed',
+    health_title: '⚠ Configuration file issue detected',
+    health_init_btn: 'Initialize',
+    health_initing: 'Initializing…',
+    health_unknown_err: 'Unknown error',
+    health_init_confirm_runtime: 'This will reset runtime_config.json to an empty overlay (corrupted file backed up as .corrupt.<ts>).',
+    health_init_confirm_llm:     'This will reset llm_keys.json to empty (corrupted file backed up as .corrupt.<ts>). Env var fallbacks in .env are unaffected.',
+    health_init_confirm_prompt:  'This will restore prompts/scalp.txt from prompts/scalp.default.txt (old file backed up as .bak.<ts>).',
+    health_confirm_suffix: '\n\nProceed?',
+    health_init_fail: '❌ ',
+    health_init_ok: (msg, backup) => '✅ ' + msg + (backup ? '\nBackup: ' + backup : ''),
+    health_init_done: 'Done',
+  },
+};
+
+// 优先用户记忆 > 浏览器语言 > 默认 zh-CN
+function _detectLang() {
+  const saved = localStorage.getItem('lang');
+  if (saved && window.I18N[saved]) return saved;
+  const candidates = (navigator.languages && navigator.languages.length)
+    ? navigator.languages
+    : [navigator.language || navigator.userLanguage || ''];
+  for (const raw of candidates) {
+    const lc = (raw || '').toLowerCase();
+    if (lc.startsWith('zh')) return 'zh-CN';
+    if (lc.startsWith('en')) return 'en-US';
+  }
+  return 'zh-CN';
+}
+window.I18N_LANG = _detectLang();
+
+window.t = function (key, ...args) {
+  const dict = window.I18N[window.I18N_LANG] || window.I18N['zh-CN'];
+  const v = dict[key];
+  if (typeof v === 'function') return v(...args);
+  if (v == null) return key;
+  return v;
+};
+
+window.setLang = function (lang) {
+  if (!window.I18N[lang]) return;
+  window.I18N_LANG = lang;
+  localStorage.setItem('lang', lang);
+  document.documentElement.lang = lang;
+  applyI18n();
+};
+
+window.applyI18n = function () {
+  document.title = t('app_title');
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+};

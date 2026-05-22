@@ -1,0 +1,1144 @@
+<!doctype html>
+<!--
+  Copyright (c) 2026 D.L <103242127@qq.com>
+  Licensed under the MIT License. See LICENSE file in the project root.
+-->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OKX Bot Console</title>
+<!-- Tailwind Play CDN (开发用)；生产建议本地化 build 后的 tailwind.css，参考 README -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js 带 SRI 锁定哈希，防止 CDN 被替换 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+        integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
+        crossorigin="anonymous"></script>
+<script src="/static/i18n.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Menlo, monospace; }
+  .log-box { background: #0b1020; color: #d6deeb; }
+  .log-line { padding: 1px 6px; white-space: pre-wrap; word-break: break-all; }
+  .log-line.error { color: #ff6b6b; }
+  .log-line.warn  { color: #f0b429; }
+  .log-line.info  { color: #82aaff; }
+  .tab.active { background: #2563eb; color: #fff; }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col">
+
+<!-- 登录页 -->
+<div id="login-view" class="hidden min-h-screen flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md relative">
+    <!-- 语言切换 -->
+    <select id="login-lang" class="absolute top-4 right-4 text-xs border rounded px-2 py-1 bg-white">
+      <option value="zh-CN">中文</option>
+      <option value="en-US">English</option>
+    </select>
+    <h1 data-i18n="app_title" class="text-2xl font-bold text-center mt-2">OrbitAI</h1>
+    <p data-i18n="app_subtitle" class="text-center text-sm text-slate-600 mb-6 mt-1">AI 驱动的永续合约智能网格交易机器人 — OKX</p>
+    <form id="login-form" class="space-y-4">
+      <input id="login-user" data-i18n-placeholder="login_user_ph" autocomplete="username"
+             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <input id="login-pass" type="password" data-i18n-placeholder="login_pass_ph" autocomplete="current-password"
+             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <button type="submit" data-i18n="login_btn"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium">
+        登录
+      </button>
+      <p id="login-err" class="text-red-500 text-sm text-center hidden"></p>
+    </form>
+    <!-- 风险提示 -->
+    <div class="mt-6 p-3 rounded-lg bg-amber-50 border border-amber-200">
+      <div class="font-bold text-amber-800 text-sm mb-1" data-i18n="login_disclaimer_title">⚠ 风险提示</div>
+      <div class="text-xs text-amber-900 leading-relaxed" data-i18n="login_disclaimer_body">本程序仅供技术学习、研究与交流，不构成任何投资建议。加密货币交易具有重大风险，请先用 OKX 模拟盘充分测试。使用即视为接受全部风险与责任。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 重置日志 modal -->
+<div id="reset-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col" style="max-height:80vh;">
+    <div class="flex items-center justify-between px-5 py-3 border-b">
+      <h3 class="font-bold flex items-center gap-2">
+        <span id="reset-modal-title">重置中…</span>
+        <span id="reset-modal-status" class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">执行中</span>
+      </h3>
+      <button id="reset-modal-close" class="text-slate-400 hover:text-slate-700 text-xl leading-none" disabled>×</button>
+    </div>
+    <div id="reset-modal-body" class="log-box mono text-xs p-4 overflow-y-auto flex-1"></div>
+    <div class="px-5 py-3 border-t text-right">
+      <button id="reset-modal-ok" data-i18n="reset_modal_close" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded-lg text-sm" disabled>关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 主控台 -->
+<div id="main-view" class="hidden">
+  <!-- 配置文件健康检查横幅（异常时显示） -->
+  <div id="health-banner" class="hidden bg-amber-50 border-b border-amber-300 text-sm">
+    <div class="max-w-7xl mx-auto px-6 py-3">
+      <div class="font-bold text-amber-800 mb-2" data-i18n="health_title">⚠ 检测到配置文件异常</div>
+      <div id="health-list" class="space-y-2"></div>
+    </div>
+  </div>
+  <!-- 顶部 -->
+  <header class="bg-white border-b shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <h1 class="text-xl font-bold flex items-center gap-3">
+        <span data-i18n="app_title">OKX Bot Console</span>
+        <span id="status-pill" data-i18n="status_checking" class="text-xs px-2 py-1 rounded-full bg-gray-200">检测中…</span>
+      </h1>
+      <div class="flex items-center gap-3">
+        <button id="btn-start" data-i18n="btn_start" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm">启动</button>
+        <button id="btn-stop"  data-i18n="btn_stop"  class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-1.5 rounded-lg text-sm">停止</button>
+        <button id="btn-reset" data-i18n="btn_reset" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg text-sm">重置</button>
+        <button id="btn-refresh" data-i18n="btn_refresh" class="bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-lg text-sm">刷新</button>
+        <select id="header-lang" class="text-xs border rounded px-2 py-1 bg-white">
+          <option value="zh-CN">中文</option>
+          <option value="en-US">English</option>
+        </select>
+        <button id="btn-logout" data-i18n="btn_logout" class="text-slate-500 hover:text-slate-700 text-sm">登出</button>
+      </div>
+    </div>
+    <nav class="max-w-7xl mx-auto px-6 flex gap-2 pb-2">
+      <button data-tab="logs"   data-i18n="tab_logs"   class="tab active px-4 py-1.5 rounded-lg text-sm bg-slate-200">日志</button>
+      <button data-tab="stats"  data-i18n="tab_stats"  class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">统计</button>
+      <button data-tab="config" data-i18n="tab_config" class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">参数</button>
+      <button data-tab="prompt" data-i18n="tab_prompt" class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">Prompt</button>
+    </nav>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-6">
+
+    <!-- 日志 tab -->
+    <section id="tab-logs">
+      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <div class="flex items-center gap-3 text-sm">
+          <label class="text-slate-600" data-i18n="log_file_label">文件：</label>
+          <select id="log-file-select" class="px-3 py-1 border rounded-lg text-sm mono"></select>
+          <span id="log-file-meta" class="text-xs text-slate-500"></span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <label class="flex items-center gap-1">
+            <input type="checkbox" id="auto-scroll" checked>
+            <span data-i18n="log_autoscroll">自动滚到底</span>
+          </label>
+          <button id="btn-load-older" data-i18n="log_load_older"
+                  class="hidden bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded text-xs">
+            ⬆ 向上加载更多
+          </button>
+        </div>
+      </div>
+      <div id="log-box" class="log-box mono text-xs rounded-lg h-[68vh] overflow-y-auto"></div>
+    </section>
+
+    <!-- 统计 tab -->
+    <section id="tab-stats" class="hidden">
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <label class="text-sm text-slate-600" data-i18n="stats_range">范围：</label>
+            <select id="stats-range" class="px-3 py-1.5 border rounded-lg text-sm">
+              <option value="7"   data-i18n="stats_range_7d"   selected>最近 7 天</option>
+              <option value="1"   data-i18n="stats_range_today">今天</option>
+              <option value="2"   data-i18n="stats_range_2d">最近 2 天</option>
+              <option value="3"   data-i18n="stats_range_3d">最近 3 天</option>
+              <option value="30"  data-i18n="stats_range_30d">最近 30 天</option>
+              <option value="90"  data-i18n="stats_range_90d">最近 90 天</option>
+              <option value="365" data-i18n="stats_range_365d">最近 365 天</option>
+            </select>
+            <button id="btn-stats-refresh" data-i18n="stats_sync_btn" class="bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-lg text-sm">立即同步</button>
+            <span id="stats-msg" class="text-sm text-slate-500"></span>
+          </div>
+          <div class="text-xs text-slate-500" data-i18n="stats_data_source_hint">数据来自本地 stats.db（后台每 10 分钟从 OKX 同步最近 7 天）。</div>
+        </div>
+
+        <!-- 汇总卡片 -->
+        <div id="stats-summary" class="grid grid-cols-4 gap-3 mb-4"></div>
+
+        <!-- 折线图 -->
+        <div class="bg-slate-50 rounded-lg p-3 mb-4" style="height: 340px;">
+          <canvas id="stats-chart"></canvas>
+        </div>
+
+        <!-- 明细表 -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-slate-600">
+              <tr>
+                <th class="px-3 py-2 text-left"  data-i18n="stats_col_date">日期</th>
+                <th class="px-3 py-2 text-right" data-i18n="stats_col_trades">笔数</th>
+                <th class="px-3 py-2 text-right" data-i18n="stats_col_closes">平仓</th>
+                <th class="px-3 py-2 text-right" data-i18n="stats_col_pnl">盈亏 (USDT)</th>
+                <th class="px-3 py-2 text-right" data-i18n="stats_col_fee">手续费 (USDT)</th>
+                <th class="px-3 py-2 text-right" data-i18n="stats_col_net">净收益 (USDT)</th>
+              </tr>
+            </thead>
+            <tbody id="stats-tbody" class="mono"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 配置 tab -->
+    <section id="tab-config" class="hidden space-y-4">
+      <div class="text-sm text-slate-600" data-i18n="config_intro">
+        编辑参数后保存会写入 runtime_config.json，重启 Bot 才生效。
+      </div>
+
+      <!-- 基础配置 -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="font-bold mb-4" data-i18n="config_basic_title">基础配置</h3>
+        <form id="config-form-basic" class="grid grid-cols-2 gap-4"></form>
+      </div>
+
+      <!-- 大模型配置 -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="font-bold mb-4" data-i18n="config_ai_title">大模型配置</h3>
+        <form id="config-form-ai" class="grid grid-cols-2 gap-4"></form>
+      </div>
+
+      <!-- 统一保存按钮 -->
+      <div class="flex items-center gap-3">
+        <button id="btn-save-config" data-i18n="config_save_all_btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm">保存全部</button>
+        <span id="config-msg" class="text-sm"></span>
+      </div>
+
+      <!-- 大模型密钥（只展示当前选中 provider）-->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold" data-i18n="llm_panel_title">大模型密钥</h3>
+          <span id="llm-current" class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700"></span>
+        </div>
+        <div class="text-xs text-slate-500 mb-3" data-i18n="llm_intro">
+          只展示当前选中厂商的密钥。修改上方「大模型配置 → AI_PROVIDER」会自动切换。密钥保存在本地 llm_keys.json（权限 600，不入 git）。
+        </div>
+        <div id="llm-keys-list" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- prompt tab -->
+    <section id="tab-prompt" class="hidden">
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="mb-2 text-sm text-slate-600">
+          <span data-i18n="prompt_path_intro">AI 提示词（</span><span class="mono" id="prompt-path">-</span><span data-i18n="prompt_path_intro_after">）。保存后下一轮 AI 调用立即生效，不需要重启。</span>
+        </div>
+        <div class="text-xs text-amber-700 mb-2">
+          <span data-i18n="prompt_required_ph">必需占位符：</span><span class="mono">{inst_id} {bar} {last_px} {max_n} {kl_lines}</span>
+        </div>
+        <textarea id="prompt-area"
+          class="w-full h-[60vh] mono text-xs border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        ></textarea>
+        <div class="mt-4 flex gap-3">
+          <button id="btn-save-prompt" data-i18n="prompt_save_btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm">保存</button>
+          <button id="btn-reload-prompt" data-i18n="prompt_reload_btn" class="bg-slate-200 hover:bg-slate-300 px-5 py-2 rounded-lg text-sm">重新加载</button>
+          <span id="prompt-msg" class="text-sm"></span>
+        </div>
+
+        <!-- 占位符说明 -->
+        <div class="mt-6 border-t pt-5">
+          <h4 class="font-bold mb-2 text-sm" data-i18n="prompt_placeholders_title">可用占位符</h4>
+          <p class="text-xs text-slate-500 mb-3" data-i18n="prompt_placeholders_intro">运行时由 ai_advisor._build_prompt 注入。标记为「必需」的占位符在保存校验时强制存在。</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead class="bg-slate-100 text-slate-600">
+                <tr>
+                  <th class="px-3 py-2 text-left w-44" data-i18n="prompt_col_name">占位符</th>
+                  <th class="px-3 py-2 text-left w-16" data-i18n="prompt_col_type">类型</th>
+                  <th class="px-3 py-2 text-left"      data-i18n="prompt_col_desc">说明</th>
+                  <th class="px-3 py-2 text-left w-28" data-i18n="prompt_col_sample">示例值</th>
+                </tr>
+              </thead>
+              <tbody id="prompt-placeholder-tbody" class="mono"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 版权页脚（内容由后端 /api/about 提供，受 HMAC 签名校验保护）-->
+<footer id="site-footer" class="mt-auto py-4 border-t border-slate-200 bg-white text-xs text-slate-500">
+  <div class="max-w-7xl mx-auto px-6 flex items-center justify-between flex-wrap gap-2">
+    <div id="footer-brand">加载中…</div>
+    <div id="footer-version" class="mono"></div>
+  </div>
+</footer>
+
+<script>
+const API = (p, init) => fetch(p, { credentials: 'same-origin', ...init });
+
+async function loadAbout() {
+  try {
+    const r = await fetch('/api/about', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const d = await r.json();
+    const brand = document.getElementById('footer-brand');
+    const ver = document.getElementById('footer-version');
+    if (d.valid) {
+      // 不用 innerHTML 注入，安全起见拆开 textContent + 单独 href
+      const a = document.createElement('a');
+      a.href = d.link;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'text-blue-600 hover:underline font-medium';
+      a.textContent = d.name;
+      brand.innerHTML = '© 2026 · Powered by ';
+      brand.appendChild(a);
+      brand.append(' · ' + t('footer_suffix'));
+      ver.textContent = 'v' + d.version;
+    } else {
+      brand.textContent = d.name + ' — ' + (d.msg || '');
+      brand.className = 'text-rose-600 font-medium';
+      ver.textContent = '';
+    }
+  } catch (e) { /* silent */ }
+}
+loadAbout();
+
+// ---------- 视图切换 ----------
+function show(view) {
+  document.getElementById('login-view').classList.toggle('hidden', view !== 'login');
+  document.getElementById('main-view').classList.toggle('hidden', view !== 'main');
+}
+
+async function bootstrap() {
+  // i18n 初始化
+  document.documentElement.lang = window.I18N_LANG;
+  applyI18n();
+  for (const id of ['login-lang', 'header-lang']) {
+    const sel = document.getElementById(id);
+    if (sel) {
+      sel.value = window.I18N_LANG;
+      sel.addEventListener('change', (e) => {
+        setLang(e.target.value);
+        // 同步另一个下拉
+        for (const otherId of ['login-lang', 'header-lang']) {
+          if (otherId !== id) {
+            const o = document.getElementById(otherId);
+            if (o) o.value = e.target.value;
+          }
+        }
+        // 重新渲染动态面板
+        loadStatus();
+        if (typeof statsLoaded !== 'undefined' && statsLoaded) loadStats();
+        loadConfig();
+        loadLlmKeys();
+        renderPlaceholderTable();
+        if (logFiles.length > 0) loadLogFiles();
+      });
+    }
+  }
+
+  const r = await API('/api/me');
+  const j = await r.json();
+  if (j.user) {
+    show('main');
+    await Promise.all([loadStatus(), loadConfig(), loadPrompt(), loadLogFiles(), loadLlmKeys(), loadHealth()]);
+    if (logFiles.length > 0) {
+      document.getElementById('log-file-select').value = logFiles[0].name;
+      await openLogFile(logFiles[0].name);
+    } else {
+      document.getElementById('log-file-meta').textContent = t('log_no_file');
+    }
+    setInterval(loadStatus, 5000);
+  } else {
+    show('login');
+  }
+}
+
+// ---------- 登录 ----------
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append('username', document.getElementById('login-user').value);
+  fd.append('password', document.getElementById('login-pass').value);
+  const r = await API('/api/login', { method: 'POST', body: fd });
+  if (r.ok) {
+    document.getElementById('login-err').classList.add('hidden');
+    await bootstrap();
+  } else {
+    const j = await r.json().catch(() => ({}));
+    const el = document.getElementById('login-err');
+    el.textContent = j.error || t('login_failed');
+    el.classList.remove('hidden');
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  await API('/api/logout', { method: 'POST' });
+  location.reload();
+});
+
+// ---------- 状态 / 启停 ----------
+async function loadStatus() {
+  const r = await API('/api/status');
+  if (r.status === 401) { show('login'); return; }
+  const j = await r.json();
+  const pill = document.getElementById('status-pill');
+  const btnStart = document.getElementById('btn-start');
+  const btnStop  = document.getElementById('btn-stop');
+  const btnReset = document.getElementById('btn-reset');
+  if (j.running) {
+    pill.textContent = `${t('status_running')} (PID ${j.pid})`;
+    pill.className = 'text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700';
+    btnStart.textContent = t('btn_running');
+    btnStart.disabled = true;
+    btnStart.className = 'bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-sm cursor-not-allowed opacity-80';
+    btnStop.disabled = false;
+    btnStop.className = 'bg-rose-600 hover:bg-rose-700 text-white px-4 py-1.5 rounded-lg text-sm';
+    btnReset.disabled = true;
+    btnReset.className = 'bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm cursor-not-allowed opacity-50';
+    btnReset.title = t('reset_tip_when_running');
+  } else {
+    pill.textContent = t('status_stopped');
+    pill.className = 'text-xs px-2 py-1 rounded-full bg-rose-100 text-rose-700';
+    btnStart.textContent = t('btn_start');
+    btnStart.disabled = false;
+    btnStart.className = 'bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm';
+    btnStop.disabled = true;
+    btnStop.className = 'bg-rose-600 text-white px-4 py-1.5 rounded-lg text-sm cursor-not-allowed opacity-50';
+    btnReset.disabled = false;
+    btnReset.className = 'bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg text-sm';
+    btnReset.title = t('reset_tip_idle');
+  }
+}
+
+document.getElementById('btn-start').addEventListener('click', async () => {
+  const r = await API('/api/start', { method: 'POST' });
+  const j = await r.json();
+  if (!r.ok) alert(j.error || t('start_fail'));
+  await loadStatus();
+});
+
+document.getElementById('btn-stop').addEventListener('click', async () => {
+  if (!confirm(t('stop_confirm'))) return;
+  const r = await API('/api/stop', { method: 'POST' });
+  const j = await r.json();
+  if (!r.ok) alert(j.error || t('stop_fail'));
+  await loadStatus();
+});
+
+document.getElementById('btn-refresh').addEventListener('click', async () => {
+  await Promise.all([loadStatus(), loadConfig(), loadPrompt()]);
+});
+
+function showResetModal() {
+  document.getElementById('reset-modal').classList.remove('hidden');
+  document.getElementById('reset-modal-title').textContent = t('reset_modal_title_running');
+  const status = document.getElementById('reset-modal-status');
+  status.textContent = t('reset_modal_status_running');
+  status.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+  document.getElementById('reset-modal-body').innerHTML = '';
+  document.getElementById('reset-modal-close').disabled = true;
+  document.getElementById('reset-modal-ok').disabled = true;
+}
+
+function appendResetLine(line, cls) {
+  const div = document.createElement('div');
+  div.className = 'log-line ' + (cls || classifyLine(line));
+  div.textContent = line;
+  const box = document.getElementById('reset-modal-body');
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function finishResetModal(ok, msg) {
+  document.getElementById('reset-modal-title').textContent = ok ? t('reset_modal_title_done') : t('reset_modal_title_fail');
+  const status = document.getElementById('reset-modal-status');
+  if (ok) {
+    status.textContent = t('reset_modal_status_ok');
+    status.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+  } else {
+    status.textContent = t('reset_modal_status_fail');
+    status.className = 'text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700';
+  }
+  if (msg) appendResetLine(msg, ok ? '' : 'error');
+  document.getElementById('reset-modal-close').disabled = false;
+  document.getElementById('reset-modal-ok').disabled = false;
+}
+
+function closeResetModal() {
+  document.getElementById('reset-modal').classList.add('hidden');
+}
+document.getElementById('reset-modal-close').addEventListener('click', closeResetModal);
+document.getElementById('reset-modal-ok').addEventListener('click', closeResetModal);
+
+document.getElementById('btn-reset').addEventListener('click', async () => {
+  if (!confirm(t('reset_confirm'))) return;
+  const btn = document.getElementById('btn-reset');
+  btn.disabled = true;
+  btn.textContent = t('reset_modal_title_running');
+  showResetModal();
+  appendResetLine(t('reset_start_msg'), 'info');
+  try {
+    const r = await API('/api/reset', { method: 'POST' });
+    const j = await r.json();
+    const output = j.output || '';
+    if (output) {
+      for (const line of output.split('\n')) appendResetLine(line);
+    }
+    if (r.ok) {
+      finishResetModal(true, '');
+    } else {
+      finishResetModal(false, j.error || ('returncode=' + j.returncode));
+    }
+  } catch (e) {
+    finishResetModal(false, t('reset_network_err') + e.message);
+  } finally {
+    btn.textContent = t('btn_reset');
+    await loadStatus();
+  }
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const t = btn.dataset.tab;
+    document.getElementById('tab-logs').classList.toggle('hidden', t !== 'logs');
+    document.getElementById('tab-stats').classList.toggle('hidden', t !== 'stats');
+    document.getElementById('tab-config').classList.toggle('hidden', t !== 'config');
+    document.getElementById('tab-prompt').classList.toggle('hidden', t !== 'prompt');
+    if (t === 'stats' && !statsLoaded) loadStats();
+  });
+});
+
+// ---------- 配置 ----------
+const FIELD_HINTS_ZH = {
+  TOTAL_USDT: '总资金 (USDT)',
+  LEVERAGE: '杠杆倍数',
+  GRID_COUNT: '机械网格格数',
+  RANGE_PCT: '网格区间(±)，如 0.04 表示 ±4%',
+  STOP_LOSS_PCT: '止损百分比，如 0.05 表示 5%',
+  POLL_INTERVAL: '主循环订单状态轮询间隔（秒），太小会撞 OKX 限频；建议 3-5',
+  AI_DRIVEN_MODE: 'AI 驱动模式 (true/false)',
+  AI_ENABLED: 'AI 总开关',
+  AI_INTERVAL_SEC: 'AI 调用间隔(秒)',
+  AI_KLINE_BAR: 'K 线周期 (1m/5m/15m/1H)',
+  AI_KLINE_LIMIT: '拉取 K 线根数',
+  AI_MAX_ORDERS_PER_CALL: '每次最大订单对数',
+  AI_MODEL: '模型名 (deepseek-chat)',
+  AI_REQUEST_TIMEOUT: 'AI 请求超时(秒)',
+  AI_VERIFY_SSL: 'SSL 校验 (true/false)',
+  AI_PROVIDER: '大模型厂商，密钥在下方「大模型密钥」面板单独管理',
+  INST_ID: 'OKX 永续合约标的',
+  OKX_DOMAIN: 'API 域名：全球用 www / AWS 节点更稳 / 美澳用 us / 欧盟用 eea，区域不匹配会鉴权失败',
+};
+
+const FIELD_HINTS_EN = {
+  TOTAL_USDT: 'Total capital (USDT)',
+  LEVERAGE: 'Leverage multiplier',
+  GRID_COUNT: 'Mechanical grid count',
+  RANGE_PCT: 'Grid range (±), e.g. 0.04 = ±4%',
+  STOP_LOSS_PCT: 'Stop-loss percentage, e.g. 0.05 = 5%',
+  POLL_INTERVAL: 'Order status polling interval (sec). Too small hits OKX rate limit; 3–5 recommended.',
+  AI_DRIVEN_MODE: 'AI-driven mode (true/false)',
+  AI_ENABLED: 'AI master switch',
+  AI_INTERVAL_SEC: 'AI decision interval (sec)',
+  AI_KLINE_BAR: 'Kline timeframe (1m/5m/15m/1H)',
+  AI_KLINE_LIMIT: 'Number of klines to fetch',
+  AI_MAX_ORDERS_PER_CALL: 'Max order pairs per round',
+  AI_MODEL: 'Model name (e.g. deepseek-chat)',
+  AI_REQUEST_TIMEOUT: 'AI request timeout (sec)',
+  AI_VERIFY_SSL: 'SSL verification (true/false)',
+  AI_PROVIDER: 'LLM provider — API keys are managed in the "LLM Keys" panel below',
+  INST_ID: 'OKX perpetual swap symbol',
+  OKX_DOMAIN: 'API domain: www = global, aws = AWS node, us = US/AU, eea = EU. Wrong region → auth fail.',
+};
+
+function fieldHint(k) {
+  const m = (window.I18N_LANG === 'en-US') ? FIELD_HINTS_EN : FIELD_HINTS_ZH;
+  return m[k] || '';
+}
+
+const FIELD_OPTIONS = {
+  INST_ID: [
+    'BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'SOL-USDT-SWAP', 'BNB-USDT-SWAP',
+    'XRP-USDT-SWAP', 'DOGE-USDT-SWAP', 'ADA-USDT-SWAP', 'AVAX-USDT-SWAP',
+    'LINK-USDT-SWAP', 'TON-USDT-SWAP', 'TRX-USDT-SWAP', 'LTC-USDT-SWAP',
+    'DOT-USDT-SWAP', 'SUI-USDT-SWAP', 'OP-USDT-SWAP', 'ARB-USDT-SWAP',
+  ],
+  AI_KLINE_BAR: ['1m', '3m', '5m', '15m', '30m', '1H', '4H'],
+  AI_PROVIDER: ['deepseek', 'openai', 'anthropic', 'gemini', 'qwen', 'moonshot', 'glm'],
+  OKX_DOMAIN: [
+    'https://www.okx.com',
+    'https://aws.okx.com',
+    'https://us.okx.com',
+    'https://eea.okx.com',
+  ],
+};
+
+const CONFIG_GROUPS = {
+  basic: ['OKX_DOMAIN', 'INST_ID', 'TOTAL_USDT', 'LEVERAGE',
+          'GRID_COUNT', 'RANGE_PCT', 'STOP_LOSS_PCT', 'POLL_INTERVAL',
+          'AI_KLINE_BAR', 'AI_KLINE_LIMIT', 'AI_MAX_ORDERS_PER_CALL'],
+  ai: ['AI_PROVIDER', 'AI_MODEL', 'AI_DRIVEN_MODE', 'AI_ENABLED',
+       'AI_INTERVAL_SEC', 'AI_REQUEST_TIMEOUT', 'AI_VERIFY_SSL'],
+};
+
+function renderField(k, v) {
+  const wrap = document.createElement('div');
+  const isBool = typeof v === 'boolean';
+  const presets = FIELD_OPTIONS[k];
+  let ctrl;
+  if (isBool) {
+    ctrl = `<select name="${k}" class="w-full px-3 py-2 border rounded-lg mono text-sm">
+              <option value="true"  ${v === true  ? 'selected' : ''}>true</option>
+              <option value="false" ${v === false ? 'selected' : ''}>false</option>
+            </select>`;
+  } else if (presets) {
+    const opts = presets.includes(v) ? presets : [v, ...presets];
+    ctrl = `<select name="${k}" class="w-full px-3 py-2 border rounded-lg mono text-sm">
+              ${opts.map(o => `<option value="${o}" ${o === v ? 'selected' : ''}>${o}</option>`).join('')}
+            </select>`;
+  } else {
+    ctrl = `<input name="${k}" value="${v ?? ''}" class="w-full px-3 py-2 border rounded-lg mono text-sm">`;
+  }
+  wrap.innerHTML = `
+    <label class="block text-sm font-medium text-slate-700 mb-1">${k}</label>
+    ${ctrl}
+    <p class="text-xs text-slate-500 mt-1">${fieldHint(k)}</p>
+  `;
+  return wrap;
+}
+
+async function loadConfig() {
+  const r = await API('/api/config');
+  if (r.status === 401) { show('login'); return; }
+  const { editable } = await r.json();
+  const formBasic = document.getElementById('config-form-basic');
+  const formAi = document.getElementById('config-form-ai');
+  formBasic.innerHTML = '';
+  formAi.innerHTML = '';
+  // 按分组渲染；不在分组里的字段兜底落到基础区
+  const placedKeys = new Set();
+  for (const k of CONFIG_GROUPS.basic) {
+    if (k in editable) { formBasic.appendChild(renderField(k, editable[k])); placedKeys.add(k); }
+  }
+  for (const k of CONFIG_GROUPS.ai) {
+    if (k in editable) { formAi.appendChild(renderField(k, editable[k])); placedKeys.add(k); }
+  }
+  for (const [k, v] of Object.entries(editable)) {
+    if (!placedKeys.has(k)) formBasic.appendChild(renderField(k, v));
+  }
+
+  // AI_PROVIDER 切换时密钥面板跟着切（不需要先保存）
+  const provSel = formAi.querySelector('[name="AI_PROVIDER"]');
+  if (provSel) {
+    provSel.addEventListener('change', () => loadLlmKeys(provSel.value));
+  }
+}
+
+document.getElementById('btn-save-config').addEventListener('click', async () => {
+  const payload = {};
+  for (const sel of ['#config-form-basic', '#config-form-ai']) {
+    for (const el of document.querySelectorAll(sel + ' input, ' + sel + ' select')) {
+      payload[el.name] = el.value;
+    }
+  }
+  const r = await API('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  const msg = document.getElementById('config-msg');
+  if (r.ok) {
+    msg.textContent = t('config_save_ok', j.hint);
+    msg.className = 'text-sm text-emerald-600';
+  } else {
+    msg.textContent = t('config_save_fail', JSON.stringify(j.errors || j));
+    msg.className = 'text-sm text-rose-600';
+  }
+  setTimeout(() => msg.textContent = '', 5000);
+});
+
+// ---------- 统计 ----------
+let statsChart = null;
+let statsLoaded = false;
+
+function fmt(v) {
+  const s = (v >= 0 ? '+' : '') + Number(v).toFixed(4);
+  return s;
+}
+function colorFor(v) {
+  if (v > 0) return 'text-emerald-600';
+  if (v < 0) return 'text-rose-600';
+  return 'text-slate-500';
+}
+
+async function loadStats() {
+  const days = document.getElementById('stats-range').value;
+  const msg = document.getElementById('stats-msg');
+  msg.textContent = t('stats_loading');
+  const r = await API('/api/stats?days=' + days);
+  if (r.status === 401) { show('login'); return; }
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    msg.textContent = '❌ ' + (j.detail || t('stats_sync_fail'));
+    msg.className = 'text-sm text-rose-600';
+    return;
+  }
+  const data = await r.json();
+  statsLoaded = true;
+  const parts = [];
+  if (data.last_sync_ts) {
+    parts.push(t('stats_last_sync', new Date(data.last_sync_ts * 1000).toLocaleString()));
+  } else {
+    parts.push(t('stats_no_sync'));
+  }
+  if (data.earliest_date) parts.push(t('stats_earliest', data.earliest_date));
+  if (data.last_sync_err) parts.push('⚠ ' + data.last_sync_err);
+  msg.textContent = parts.join(' · ');
+  msg.className = 'text-sm ' + (data.last_sync_err ? 'text-rose-600' : 'text-slate-500');
+
+  // 汇总卡片
+  const t = data.total;
+  document.getElementById('stats-summary').innerHTML = `
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${window.t('stats_total_trades')}</div>
+      <div class="text-2xl font-bold mono">${t.trades} / ${t.closes}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${window.t('stats_total_pnl')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(t.gross_pnl)}">${fmt(t.gross_pnl)}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${window.t('stats_total_fee')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(t.fee)}">${fmt(t.fee)}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${window.t('stats_net_pnl')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(t.net_pnl)}">${fmt(t.net_pnl)}</div>
+    </div>
+  `;
+
+  // 折线图
+  const labels = data.rows.map(r => r.date.slice(5));  // MM-DD
+  const ds = (label, key, color) => ({
+    label, data: data.rows.map(r => r[key]),
+    borderColor: color, backgroundColor: color + '22',
+    tension: 0.25, borderWidth: 2, pointRadius: 3,
+  });
+  const cfg = {
+    type: 'line',
+    data: { labels, datasets: [
+      ds(window.t('stats_col_pnl'),  'gross_pnl', '#10b981'),
+      ds(window.t('stats_col_fee'),  'fee',       '#f43f5e'),
+      ds(window.t('stats_col_net'),  'net_pnl',   '#2563eb'),
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: {
+          ticks: { callback: v => Number(v).toFixed(2) },
+          grid: { color: '#e2e8f0' },
+        },
+        x: { grid: { display: false } },
+      },
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.parsed.y) + ' USDT' },
+        },
+      },
+    },
+  };
+  if (statsChart) statsChart.destroy();
+  statsChart = new Chart(document.getElementById('stats-chart'), cfg);
+
+  // 明细表（最新的日期排最上面）
+  const tbody = document.getElementById('stats-tbody');
+  tbody.innerHTML = data.rows.slice().reverse().map(r => `
+    <tr class="border-b border-slate-100">
+      <td class="px-3 py-2">${r.date}</td>
+      <td class="px-3 py-2 text-right">${r.trades}</td>
+      <td class="px-3 py-2 text-right">${r.closes}</td>
+      <td class="px-3 py-2 text-right ${colorFor(r.gross_pnl)}">${fmt(r.gross_pnl)}</td>
+      <td class="px-3 py-2 text-right ${colorFor(r.fee)}">${fmt(r.fee)}</td>
+      <td class="px-3 py-2 text-right font-bold ${colorFor(r.net_pnl)}">${fmt(r.net_pnl)}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('stats-range').addEventListener('change', loadStats);
+document.getElementById('btn-stats-refresh').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-stats-refresh');
+  const msg = document.getElementById('stats-msg');
+  btn.disabled = true;
+  btn.textContent = t('stats_syncing');
+  msg.textContent = t('stats_sync_from_okx');
+  msg.className = 'text-sm text-slate-500';
+  try {
+    const r = await API('/api/stats/sync', { method: 'POST' });
+    const j = await r.json();
+    if (!r.ok) {
+      msg.textContent = '❌ ' + (j.error || t('stats_sync_fail'));
+      msg.className = 'text-sm text-rose-600';
+    } else {
+      await loadStats();
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('stats_sync_btn');
+  }
+});
+
+// ---------- 配置文件健康检查 ----------
+async function loadHealth() {
+  const r = await API('/api/health');
+  if (r.status === 401) { show('login'); return; }
+  if (!r.ok) return;
+  const data = await r.json();
+  const banner = document.getElementById('health-banner');
+  const list = document.getElementById('health-list');
+  const bad = (data.items || []).filter(i => !i.ok);
+  if (bad.length === 0) {
+    banner.classList.add('hidden');
+    return;
+  }
+  list.innerHTML = '';
+  for (const i of bad) {
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between bg-white rounded-lg p-3 border border-amber-200';
+    const left = document.createElement('div');
+    left.className = 'flex-1';
+    const name = document.createElement('div');
+    name.className = 'font-medium text-amber-900';
+    name.textContent = i.name;
+    const err = document.createElement('div');
+    err.className = 'text-xs text-rose-600 mono mt-1';
+    err.textContent = i.error || t('health_unknown_err');
+    const path = document.createElement('div');
+    path.className = 'text-xs text-slate-500 mono';
+    path.textContent = i.file;
+    left.append(name, err, path);
+    const btn = document.createElement('button');
+    btn.className = 'health-init-btn ml-3 bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg text-sm';
+    btn.dataset.key = i.key;
+    btn.textContent = t('health_init_btn');
+    row.append(left, btn);
+    list.appendChild(row);
+  }
+  banner.classList.remove('hidden');
+  list.querySelectorAll('.health-init-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const k = btn.dataset.key;
+      const tipKey = {
+        runtime_config: 'health_init_confirm_runtime',
+        llm_keys:       'health_init_confirm_llm',
+        prompt:         'health_init_confirm_prompt',
+      }[k];
+      if (!confirm(t(tipKey) + t('health_confirm_suffix'))) return;
+      btn.disabled = true; btn.textContent = t('health_initing');
+      try {
+        const r = await API('/api/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: k }),
+        });
+        const j = await r.json();
+        if (!r.ok) {
+          alert(t('health_init_fail') + (j.error || j.detail || ''));
+        } else {
+          alert(t('health_init_ok', j.msg || t('health_init_done'), j.backup));
+          await loadHealth();
+          if (k === 'runtime_config') await loadConfig();
+          if (k === 'llm_keys')       await loadLlmKeys();
+          if (k === 'prompt')         await loadPrompt();
+        }
+      } finally {
+        btn.disabled = false; btn.textContent = t('health_init_btn');
+      }
+    });
+  });
+}
+
+// ---------- Prompt 占位符说明 ----------
+const PROMPT_PLACEHOLDERS = [
+  // [name, required, type, desc_zh, desc_en, sample]
+  ['{inst_id}',   true,  'str',
+    '交易标的（来自配置 INST_ID）', 'Trading symbol (from config INST_ID)', 'ETH-USDT-SWAP'],
+  ['{bar}',       true,  'str',
+    'K 线周期（来自配置 AI_KLINE_BAR）', 'Kline timeframe (from AI_KLINE_BAR)', '1m'],
+  ['{last_px}',   true,  'float',
+    '当前最新成交价', 'Last traded price', '2143.28'],
+  ['{max_n}',     true,  'int',
+    '本轮最多可挂订单对数（AI_MAX_ORDERS_PER_CALL）', 'Max order pairs per round (AI_MAX_ORDERS_PER_CALL)', '20'],
+  ['{kl_lines}',  true,  'text',
+    '最近 K 线 OHLCV 多行文本（已含成交量）', 'Recent klines OHLCV (multi-line text incl. volume)', '10 lines'],
+  ['{rsi14}',     false, 'float',
+    'RSI(14) 相对强弱指标 (0~100)', 'RSI(14) — relative strength index (0–100)', '52.3'],
+  ['{ema20}',     false, 'float',
+    'EMA(20) 短期均线', 'EMA(20) short-term moving average', '2138.50'],
+  ['{ema60}',     false, 'float',
+    'EMA(60) 长期均线', 'EMA(60) long-term moving average', '2125.10'],
+  ['{atr14}',     false, 'float',
+    'ATR(14) 平均真实波幅', 'ATR(14) average true range', '3.42'],
+  ['{atr_pct}',   false, 'float',
+    'ATR 占当前价百分比 (%)', 'ATR as % of last price', '0.16'],
+  ['{bb_up}',     false, 'float',
+    '布林带上轨 (20, 2σ)', 'Bollinger upper band (20, 2σ)', '2148.60'],
+  ['{bb_mid}',    false, 'float',
+    '布林带中轨', 'Bollinger middle band', '2140.00'],
+  ['{bb_low}',    false, 'float',
+    '布林带下轨', 'Bollinger lower band', '2131.40'],
+  ['{bb_pct}',    false, 'float',
+    '当前价在带内位置 (0=下轨, 50=中轨, 100=上轨)', 'Position within bands (0=lower, 50=mid, 100=upper)', '64.5'],
+  ['{bb_bw}',     false, 'float',
+    '布林带宽 (%)', 'Bollinger bandwidth (%)', '0.80'],
+  ['{vol_ratio}', false, 'float',
+    '成交量比率 = 当前 / 近 20 根均量 (>1 放量)', 'Volume ratio = current / 20-bar average (>1 = expanding)', '1.45'],
+];
+
+function renderPlaceholderTable() {
+  const tbody = document.getElementById('prompt-placeholder-tbody');
+  if (!tbody) return;
+  const useEn = window.I18N_LANG === 'en-US';
+  tbody.innerHTML = PROMPT_PLACEHOLDERS.map(([name, req, type, descZh, descEn, sample]) => {
+    const desc = useEn ? descEn : descZh;
+    return `
+      <tr class="border-b border-slate-100">
+        <td class="px-3 py-1.5">${name}${req ? '<span class="ml-1 text-rose-500">*</span>' : ''}</td>
+        <td class="px-3 py-1.5 text-slate-500">${type}</td>
+        <td class="px-3 py-1.5 text-slate-700 font-sans">${desc}</td>
+        <td class="px-3 py-1.5 text-slate-400">${sample}</td>
+      </tr>
+    `;
+  }).join('') + `
+    <tr><td colspan="4" class="px-3 py-2 text-xs text-slate-500 font-sans">${t('prompt_table_footer')}</td></tr>
+  `;
+}
+
+// ---------- LLM 密钥 ----------
+async function loadLlmKeys(filterProvider) {
+  const r = await API('/api/llm/keys');
+  if (r.status === 401) { show('login'); return; }
+  if (!r.ok) return;
+  const data = await r.json();
+  const provs = data.providers || {};
+  const target = (filterProvider || data.current || 'deepseek').toLowerCase();
+  document.getElementById('llm-current').textContent = t('llm_current', provs[target]?.label || target);
+  const wrap = document.getElementById('llm-keys-list');
+  if (!provs[target]) {
+    wrap.innerHTML = `<div class="text-sm text-slate-500">${t('llm_unknown_provider', target)}</div>`;
+    return;
+  }
+  const info = provs[target];
+  const badge = info.configured
+    ? (info.source === 'local'
+        ? `<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">${t('llm_state_local')}</span>`
+        : `<span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">${t('llm_state_env', info.env_name)}</span>`)
+    : `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${t('llm_state_none')}</span>`;
+  wrap.innerHTML = `
+    <div class="border border-blue-300 bg-blue-50/30 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-medium">${info.label}</div>
+        ${badge}
+      </div>
+      <div class="text-xs text-slate-500 mb-2">${t('llm_default_model')}<span class="mono">${info.default_model}</span>${t('llm_env_fallback')}<span class="mono">${info.env_name}</span></div>
+      <div class="flex gap-2">
+        <input type="password" placeholder="${info.configured ? t('llm_input_ph_set') : t('llm_input_ph_empty')}"
+               data-provider="${target}" class="llm-key-input flex-1 px-3 py-1.5 border rounded-lg mono text-sm">
+        <button data-provider="${target}" class="llm-save-btn bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">${t('llm_save_btn')}</button>
+        ${info.configured && info.source === 'local'
+          ? `<button data-provider="${target}" class="llm-clear-btn bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-lg text-sm">${t('llm_clear_btn')}</button>` : ''}
+      </div>
+    </div>
+  `;
+
+  wrap.querySelectorAll('.llm-save-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const p = btn.dataset.provider;
+      const input = wrap.querySelector(`.llm-key-input[data-provider="${p}"]`);
+      const key = input.value.trim();
+      if (!key) { alert(t('llm_save_need_key')); return; }
+      btn.disabled = true; btn.textContent = t('llm_saving');
+      try {
+        const r = await API('/api/llm/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: p, key }),
+        });
+        if (!r.ok) { alert(t('llm_save_fail')); return; }
+        await loadLlmKeys(p);
+      } finally { btn.disabled = false; btn.textContent = t('llm_save_btn'); }
+    });
+  });
+  wrap.querySelectorAll('.llm-clear-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const p = btn.dataset.provider;
+      if (!confirm(t('llm_clear_confirm', p, info.env_name))) return;
+      const r = await API('/api/llm/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: p, key: '' }),
+      });
+      if (r.ok) await loadLlmKeys(p);
+    });
+  });
+}
+
+// ---------- Prompt ----------
+async function loadPrompt() {
+  const r = await API('/api/prompt');
+  if (r.status === 401) { show('login'); return; }
+  const j = await r.json();
+  document.getElementById('prompt-area').value = j.content;
+  document.getElementById('prompt-path').textContent = j.path;
+  renderPlaceholderTable();
+}
+document.getElementById('btn-reload-prompt').addEventListener('click', loadPrompt);
+document.getElementById('btn-save-prompt').addEventListener('click', async () => {
+  const content = document.getElementById('prompt-area').value;
+  const r = await API('/api/prompt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  const j = await r.json();
+  const msg = document.getElementById('prompt-msg');
+  if (r.ok) {
+    msg.textContent = t('prompt_save_ok');
+    msg.className = 'text-sm text-emerald-600';
+  } else {
+    msg.textContent = t('prompt_save_fail') + (j.detail || JSON.stringify(j));
+    msg.className = 'text-sm text-rose-600';
+  }
+  setTimeout(() => msg.textContent = '', 5000);
+});
+
+// ---------- 日志 ----------
+function classifyLine(line) {
+  if (/\bERROR\b|\| ERROR \|/.test(line)) return 'error';
+  if (/\bWARNING\b|\| WARNING \|/.test(line)) return 'warn';
+  if (/\bINFO\b|\| INFO \|/.test(line)) return 'info';
+  return '';
+}
+function makeLogLine(line) {
+  const div = document.createElement('div');
+  div.className = 'log-line ' + classifyLine(line);
+  div.textContent = line;
+  return div;
+}
+function appendLog(line) {
+  const box = document.getElementById('log-box');
+  box.appendChild(makeLogLine(line));
+  while (box.childElementCount > 5000) box.removeChild(box.firstChild);
+  if (document.getElementById('auto-scroll').checked) {
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+let logSource = null;
+let logFiles = [];          // [{name,size,mtime}, ...]
+let logCurrentFile = null;  // 当前在看的文件名
+let logIsLatest = false;    // 是否在看最新文件（决定要不要开 SSE）
+let logChunkStart = 0;      // 当前已加载的最早字节（用于翻更早）
+let logChunkSize = 200_000; // ~200KB / 块
+
+function fmtSize(n) {
+  if (n < 1024) return n + 'B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + 'KB';
+  return (n / 1024 / 1024).toFixed(2) + 'MB';
+}
+
+async function loadLogFiles() {
+  const r = await API('/api/logs/files');
+  if (!r.ok) return;
+  const j = await r.json();
+  logFiles = j.files || [];
+  const sel = document.getElementById('log-file-select');
+  const latestTag = (window.I18N_LANG === 'en-US') ? ' · latest' : ' · 最新';
+  sel.innerHTML = logFiles.map((f, i) =>
+    `<option value="${f.name}">${f.name}（${fmtSize(f.size)}）${i === 0 ? latestTag : ''}</option>`
+  ).join('');
+  if (logFiles.length === 0) {
+    sel.innerHTML = `<option value="">${t('log_no_file')}</option>`;
+  }
+}
+
+function setLogMeta(text) {
+  document.getElementById('log-file-meta').textContent = text;
+}
+
+function stopLogStream() {
+  if (logSource) {
+    logSource.close();
+    logSource = null;
+  }
+}
+
+function startLogStream(file) {
+  stopLogStream();
+  // SSE 端固定追最新文件，不带 file 参数
+  logSource = new EventSource('/api/logs/stream');
+  logSource.onmessage = (ev) => appendLog(ev.data);
+  logSource.onerror = () => {
+    setTimeout(() => {
+      if (logIsLatest) startLogStream(file);
+    }, 3000);
+  };
+}
+
+async function openLogFile(name) {
+  logCurrentFile = name;
+  logIsLatest = (logFiles[0] && logFiles[0].name === name);
+  const box = document.getElementById('log-box');
+  box.innerHTML = '';
+  const r = await API(`/api/logs/read?file=${encodeURIComponent(name)}&chunk=${logChunkSize}`);
+  if (!r.ok) {
+    box.innerHTML = `<div class="log-line error">${t('log_read_fail')}</div>`;
+    return;
+  }
+  const j = await r.json();
+  logChunkStart = j.start;
+  for (const l of j.lines) box.appendChild(makeLogLine(l));
+  box.scrollTop = box.scrollHeight;
+  document.getElementById('btn-load-older').classList.toggle('hidden', !j.has_more_before);
+  setLogMeta(t('log_size_loaded', fmtSize(j.size), fmtSize(j.size - j.start), j.has_more_before));
+
+  if (logIsLatest) startLogStream(name);
+  else stopLogStream();
+}
+
+document.getElementById('log-file-select').addEventListener('change', (e) => {
+  if (e.target.value) openLogFile(e.target.value);
+});
+
+document.getElementById('btn-load-older').addEventListener('click', async () => {
+  if (!logCurrentFile || logChunkStart <= 0) return;
+  const btn = document.getElementById('btn-load-older');
+  btn.disabled = true;
+  btn.textContent = t('log_loading');
+  try {
+    const r = await API(`/api/logs/read?file=${encodeURIComponent(logCurrentFile)}&end=${logChunkStart}&chunk=${logChunkSize}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    const box = document.getElementById('log-box');
+    const prevHeight = box.scrollHeight;
+    const frag = document.createDocumentFragment();
+    for (const l of j.lines) frag.appendChild(makeLogLine(l));
+    box.insertBefore(frag, box.firstChild);
+    box.scrollTop = box.scrollHeight - prevHeight;
+    logChunkStart = j.start;
+    btn.classList.toggle('hidden', !j.has_more_before);
+    const meta = t('log_size_loaded', fmtSize(j.size), fmtSize(j.size - j.start), j.has_more_before);
+    setLogMeta(j.has_more_before ? meta : `${fmtSize(j.size)} · ${t('log_all_loaded')}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('log_load_older');
+  }
+});
+
+bootstrap();
+</script>
+</body>
+</html>

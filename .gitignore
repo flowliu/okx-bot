@@ -1,0 +1,37 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+
+# Secrets / 用户私有配置 — 绝不入库
+.env
+.env.local
+.env.*.local
+llm_keys.json
+llm_keys.json.*
+
+# Runtime state
+runtime_config.json
+runtime_config.json.*
+bot.pid
+*.db
+*.db-journal
+
+# Logs
+logs/
+*.log
+
+# Prompt 备份 / 损坏文件
+prompts/*.bak.*
+prompts/*.corrupt.*
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
