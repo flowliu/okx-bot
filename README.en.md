@@ -84,7 +84,31 @@ Open <http://localhost:8765> and log in with `WEBUI_USER` / `WEBUI_PASS` from `.
 - **Prompt** tab — edit the AI prompt (hot-reloads on save, no restart needed)
 - Switch **中文 / English** in the login page (top-right)
 
-### 5. Command-line usage (no Web UI required)
+### 5. Docker deployment (recommended for production)
+
+```bash
+# Prepare .env first
+cp .env.example .env
+vim .env   # fill in credentials
+
+# One-shot start
+docker compose up -d
+
+# Logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+Image: `orbitai:1.0.0`, binds `127.0.0.1:8765` by default (loopback only).
+Persistent data lives under `./data/` — surviving container rebuilds.
+
+For public exposure, front it with Nginx/Caddy + HTTPS and change the port mapping to `"8765:8765"`.
+
+Default timezone is `Asia/Shanghai`. Change the `TZ` env in `docker-compose.yml` to match your deployment region (affects daily P&L aggregation).
+
+### 6. Command-line usage (no Web UI required)
 
 ```bash
 # Run the bot directly

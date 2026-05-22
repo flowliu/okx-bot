@@ -10,10 +10,8 @@
 <title>OKX Bot Console</title>
 <!-- Tailwind Play CDN (开发用)；生产建议本地化 build 后的 tailwind.css，参考 README -->
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- Chart.js 带 SRI 锁定哈希，防止 CDN 被替换 -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
-        integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
-        crossorigin="anonymous"></script>
+<!-- Chart.js 本地化，避免 source-map 跨域请求被 CSP 阻断 -->
+<script src="/static/vendor/chart.umd.min.js"></script>
 <script src="/static/i18n.js"></script>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; }
@@ -699,23 +697,23 @@ async function loadStats() {
   msg.className = 'text-sm ' + (data.last_sync_err ? 'text-rose-600' : 'text-slate-500');
 
   // 汇总卡片
-  const t = data.total;
+  const tot = data.total;
   document.getElementById('stats-summary').innerHTML = `
     <div class="bg-slate-50 rounded-lg p-3">
-      <div class="text-xs text-slate-500">${window.t('stats_total_trades')}</div>
-      <div class="text-2xl font-bold mono">${t.trades} / ${t.closes}</div>
+      <div class="text-xs text-slate-500">${t('stats_total_trades')}</div>
+      <div class="text-2xl font-bold mono">${tot.trades} / ${tot.closes}</div>
     </div>
     <div class="bg-slate-50 rounded-lg p-3">
-      <div class="text-xs text-slate-500">${window.t('stats_total_pnl')}</div>
-      <div class="text-2xl font-bold mono ${colorFor(t.gross_pnl)}">${fmt(t.gross_pnl)}</div>
+      <div class="text-xs text-slate-500">${t('stats_total_pnl')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(tot.gross_pnl)}">${fmt(tot.gross_pnl)}</div>
     </div>
     <div class="bg-slate-50 rounded-lg p-3">
-      <div class="text-xs text-slate-500">${window.t('stats_total_fee')}</div>
-      <div class="text-2xl font-bold mono ${colorFor(t.fee)}">${fmt(t.fee)}</div>
+      <div class="text-xs text-slate-500">${t('stats_total_fee')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(tot.fee)}">${fmt(tot.fee)}</div>
     </div>
     <div class="bg-slate-50 rounded-lg p-3">
-      <div class="text-xs text-slate-500">${window.t('stats_net_pnl')}</div>
-      <div class="text-2xl font-bold mono ${colorFor(t.net_pnl)}">${fmt(t.net_pnl)}</div>
+      <div class="text-xs text-slate-500">${t('stats_net_pnl')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(tot.net_pnl)}">${fmt(tot.net_pnl)}</div>
     </div>
   `;
 
@@ -729,9 +727,9 @@ async function loadStats() {
   const cfg = {
     type: 'line',
     data: { labels, datasets: [
-      ds(window.t('stats_col_pnl'),  'gross_pnl', '#10b981'),
-      ds(window.t('stats_col_fee'),  'fee',       '#f43f5e'),
-      ds(window.t('stats_col_net'),  'net_pnl',   '#2563eb'),
+      ds(t('stats_col_pnl'),  'gross_pnl', '#10b981'),
+      ds(t('stats_col_fee'),  'fee',       '#f43f5e'),
+      ds(t('stats_col_net'),  'net_pnl',   '#2563eb'),
     ]},
     options: {
       responsive: true, maintainAspectRatio: false,

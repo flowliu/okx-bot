@@ -104,10 +104,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         resp.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; "
+            "script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline' 'unsafe-eval'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
-            "connect-src 'self'; "
+            "connect-src 'self' https://cdn.tailwindcss.com; "
             "frame-ancestors 'none';"
         )
         if WEBUI_HTTPS_ONLY:
