@@ -85,6 +85,23 @@ _login_lock = threading.Lock()
 
 _bot_popen: subprocess.Popen | None = None
 
+# ---------- 请求签名（防 CSRF + 防重放）----------
+# 写接口必须带 X-Timestamp / X-Nonce / X-Sign，签名 = HMAC-SHA256(sign_key, msg)
+# msg = ts + "\n" + nonce + "\n" + method + "\n" + path + "\n" + sha256(body)
+SIGN_WINDOW_SEC = 300
+import hashlib  # 顶部已 import hmac
+
+_seen_nonces: dict[str, float] = {}
+_nonce_lock = threading.Lock()
+
+
+def _purge_expired_nonces() -> None:
+    """清理过期 nonce（一次性清理，触发于每次签名验证）。"""
+    cutoff = time.time() - SIGN_WINDOW_SEC * 2
+    with _nonce_lock:
+        for n in [k for k, t in _seen_nonces.items() if t < cutoff]:
+            _seen_nonces.pop(n, None)
+
 EDITABLE_KEYS = {
     # 第一行：域名 + 标的
     "OKX_DOMAIN": str,
@@ -148,6 +165,47 @@ if STATIC_DIR.exists():
 def require_login(request: Request) -> None:
     if not request.session.get("user"):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "未登录")
+
+
+async def require_signed(request: Request) -> None:
+    """敏感写接口：必须已登录 + 带合法的 X-Timestamp/X-Nonce/X-Sign 头。"""
+    require_login(request)
+    sign_key = request.session.get("sign_key")
+    if not sign_key:
+        # 旧 session 无 sign_key —— 强制重新登录
+        raise HTTPException(401, "签名密钥缺失，请重新登录")
+
+    ts = request.headers.get("x-timestamp", "")
+    nonce = request.headers.get("x-nonce", "")
+    sig = request.headers.get("x-sign", "")
+    if not (ts and nonce and sig):
+        raise HTTPException(400, "缺少签名头 (X-Timestamp / X-Nonce / X-Sign)")
+
+    try:
+        ts_int = int(ts)
+    except ValueError:
+        raise HTTPException(400, "X-Timestamp 必须是 unix 秒整数")
+
+    now = int(time.time())
+    if abs(now - ts_int) > SIGN_WINDOW_SEC:
+        raise HTTPException(400, f"请求时间偏差过大 ({now - ts_int}s)，请检查客户端时钟")
+
+    # nonce 防重放
+    _purge_expired_nonces()
+    with _nonce_lock:
+        if nonce in _seen_nonces:
+            raise HTTPException(400, "nonce 已被使用（防重放）")
+        # 长度防呆：避免恶意塞超大 key
+        if len(nonce) > 64:
+            raise HTTPException(400, "nonce 过长")
+        _seen_nonces[nonce] = time.time()
+
+    body = await request.body()
+    body_hash = hashlib.sha256(body).hexdigest()
+    msg = f"{ts}\n{nonce}\n{request.method.upper()}\n{request.url.path}\n{body_hash}"
+    expected = hmac.new(sign_key.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig):
+        raise HTTPException(401, "签名验证失败")
 
 
 def _reap_if_zombie() -> bool:
@@ -272,7 +330,10 @@ def api_login(request: Request, username: str = Form(...), password: str = Form(
         request.session.clear()
         request.session["user"] = username
         request.session["login_at"] = int(time.time())
-        return JSONResponse({"ok": True})
+        # 生成本次会话的签名密钥；前端缓存 + session 存一份，写接口验签用
+        sign_key = secrets.token_hex(32)
+        request.session["sign_key"] = sign_key
+        return JSONResponse({"ok": True, "sign_key": sign_key})
     _record_login_failure(ip)
     return JSONResponse({"ok": False, "error": "用户名或密码错误"}, status_code=401)
 
@@ -300,7 +361,7 @@ def api_status() -> JSONResponse:
     })
 
 
-@app.post("/api/start", dependencies=[Depends(require_login)])
+@app.post("/api/start", dependencies=[Depends(require_signed)])
 def api_start() -> JSONResponse:
     if bot_pid() is not None:
         return JSONResponse({"ok": False, "error": "已在运行"}, status_code=409)
@@ -381,7 +442,7 @@ def _force_kill_bot(pid: int) -> None:
         pass
 
 
-@app.post("/api/stop", dependencies=[Depends(require_login)])
+@app.post("/api/stop", dependencies=[Depends(require_signed)])
 def api_stop() -> JSONResponse:
     pid = bot_pid()
     if pid is None:
@@ -475,7 +536,7 @@ def api_health() -> JSONResponse:
     return JSONResponse({"all_ok": all_ok, "items": items})
 
 
-@app.post("/api/init", dependencies=[Depends(require_login)])
+@app.post("/api/init", dependencies=[Depends(require_signed)])
 async def api_init(request: Request) -> JSONResponse:
     """初始化指定配置文件。
     body: {"key": "runtime_config"|"llm_keys"|"prompt"}
@@ -502,7 +563,7 @@ async def api_init(request: Request) -> JSONResponse:
 
 # ---------- 重置 ----------
 
-@app.post("/api/reset", dependencies=[Depends(require_login)])
+@app.post("/api/reset", dependencies=[Depends(require_signed)])
 def api_reset() -> JSONResponse:
     """运行 reset.py：撤所有挂单 + 平所有持仓 + 清 grid.db。
     Bot 必须先停掉，避免和主循环抢 OKX 接口。
@@ -540,7 +601,7 @@ def api_get_config() -> JSONResponse:
     return JSONResponse({"editable": editable, "all": all_cfg})
 
 
-@app.post("/api/config", dependencies=[Depends(require_login)])
+@app.post("/api/config", dependencies=[Depends(require_signed)])
 async def api_set_config(request: Request) -> JSONResponse:
     payload = await request.json()
     if not isinstance(payload, dict):
@@ -572,7 +633,7 @@ def api_llm_keys() -> JSONResponse:
     })
 
 
-@app.post("/api/llm/keys", dependencies=[Depends(require_login)])
+@app.post("/api/llm/keys", dependencies=[Depends(require_signed)])
 async def api_llm_set_key(request: Request) -> JSONResponse:
     """设置/清除某个 provider 的 key。{provider, key}；key 为空字符串=清除。"""
     payload = await request.json()
@@ -597,7 +658,7 @@ def api_get_prompt() -> JSONResponse:
     return JSONResponse({"content": text, "path": str(PROMPT_FILE)})
 
 
-@app.post("/api/prompt", dependencies=[Depends(require_login)])
+@app.post("/api/prompt", dependencies=[Depends(require_signed)])
 async def api_set_prompt(request: Request) -> JSONResponse:
     payload = await request.json()
     content = payload.get("content")
@@ -781,7 +842,7 @@ def api_stats(days: int = 7) -> JSONResponse:
     })
 
 
-@app.post("/api/stats/sync", dependencies=[Depends(require_login)])
+@app.post("/api/stats/sync", dependencies=[Depends(require_signed)])
 def api_stats_sync() -> JSONResponse:
     """前端「刷新」按钮：立即触发一次 sync 并等结果（最长 30s）。"""
     result = _sync_once()

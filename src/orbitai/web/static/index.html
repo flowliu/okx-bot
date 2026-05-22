@@ -269,7 +269,69 @@
 </footer>
 
 <script>
-const API = (p, init) => fetch(p, { credentials: 'same-origin', ...init });
+// ---------- 请求签名 (HMAC-SHA256) ----------
+// 写接口需带 X-Timestamp / X-Nonce / X-Sign
+// sign_key 在登录响应里下发，存 sessionStorage（关 tab 失效）
+const SIGNED_PATHS = [
+  '/api/start', '/api/stop', '/api/reset',
+  '/api/config', '/api/llm/keys', '/api/init',
+  '/api/prompt', '/api/stats/sync',
+];
+
+async function _hmacSha256Hex(keyStr, msgStr) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(keyStr),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msgStr));
+  return Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function _sha256Hex(strOrBytes) {
+  const enc = new TextEncoder();
+  const buf = typeof strOrBytes === 'string' ? enc.encode(strOrBytes) : strOrBytes;
+  const sig = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function _randomNonce() {
+  const b = new Uint8Array(8);
+  crypto.getRandomValues(b);
+  return Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+const API = async (path, init = {}) => {
+  init.credentials = 'same-origin';
+  const method = (init.method || 'GET').toUpperCase();
+  const needsSign = (method !== 'GET' && method !== 'HEAD')
+                 && SIGNED_PATHS.some(p => path === p || path.startsWith(p + '?'));
+  if (needsSign) {
+    const signKey = sessionStorage.getItem('sign_key');
+    if (signKey) {
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const nonce = _randomNonce();
+      // body 计算 sha256；FormData 我们这里没用 POST 写接口，所以 body 总是 string 或空
+      let bodyStr = '';
+      if (init.body) {
+        if (typeof init.body === 'string') bodyStr = init.body;
+        else if (init.body instanceof FormData) {
+          // 极少出现的情况：FormData 不签，跳过签名头
+          // /api/login 走 FormData 但不在 SIGNED_PATHS 里
+        } else bodyStr = String(init.body);
+      }
+      const bodyHash = await _sha256Hex(bodyStr);
+      const msg = `${ts}\n${nonce}\n${method}\n${path}\n${bodyHash}`;
+      const sig = await _hmacSha256Hex(signKey, msg);
+      init.headers = {
+        ...(init.headers || {}),
+        'X-Timestamp': ts,
+        'X-Nonce': nonce,
+        'X-Sign': sig,
+      };
+    }
+  }
+  return fetch(path, init);
+};
 
 async function loadAbout() {
   try {
@@ -367,11 +429,13 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   fd.append('username', document.getElementById('login-user').value);
   fd.append('password', document.getElementById('login-pass').value);
   const r = await API('/api/login', { method: 'POST', body: fd });
-  if (r.ok) {
+  const j = await r.json().catch(() => ({}));
+  if (r.ok && j.ok) {
+    // 缓存签名密钥；后续写接口的 X-Sign 用它
+    if (j.sign_key) sessionStorage.setItem('sign_key', j.sign_key);
     document.getElementById('login-err').classList.add('hidden');
     await bootstrap();
   } else {
-    const j = await r.json().catch(() => ({}));
     const el = document.getElementById('login-err');
     el.textContent = j.error || t('login_failed');
     el.classList.remove('hidden');
@@ -380,6 +444,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
 document.getElementById('btn-logout').addEventListener('click', async () => {
   await API('/api/logout', { method: 'POST' });
+  sessionStorage.removeItem('sign_key');
   location.reload();
 });
 
