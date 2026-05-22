@@ -17,12 +17,22 @@ import secrets
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+import psutil  # 跨平台进程管理
+
+IS_WINDOWS = sys.platform == "win32"
+# Popen 跨平台参数：新建独立进程组以隔离信号 / 控制台
+if IS_WINDOWS:
+    POPEN_EXTRA = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+else:
+    POPEN_EXTRA = {"start_new_session": True}
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -152,6 +162,9 @@ def _reap_if_zombie() -> bool:
 
 
 def bot_pid() -> int | None:
+    """跨平台进程探活。
+    用 psutil 替代 os.kill(pid, 0) —— 在 Windows 上后者会触发 TerminateProcess 杀进程。
+    """
     _reap_if_zombie()
     if not PID_FILE.exists():
         return None
@@ -160,27 +173,16 @@ def bot_pid() -> int | None:
     except (ValueError, OSError):
         return None
     try:
-        os.kill(pid, 0)
-    except OSError:
+        proc = psutil.Process(pid)
+        # 僵尸进程（POSIX 概念）视为已退出
+        if proc.status() == psutil.STATUS_ZOMBIE:
+            raise psutil.NoSuchProcess(pid)
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         try:
             PID_FILE.unlink()
         except OSError:
             pass
         return None
-    # 探活成功但可能是僵尸：用 ps 查状态
-    try:
-        out = subprocess.run(
-            ["ps", "-o", "state=", "-p", str(pid)],
-            capture_output=True, text=True, timeout=2,
-        ).stdout.strip()
-        if out.startswith("Z"):
-            try:
-                PID_FILE.unlink()
-            except OSError:
-                pass
-            return None
-    except Exception:
-        pass
     return pid
 
 
@@ -311,7 +313,7 @@ def api_start() -> JSONResponse:
             cwd=str(ROOT),
             stdout=fout,
             stderr=ferr,
-            start_new_session=True,
+            **POPEN_EXTRA,
         )
     # 等 pid 文件落盘
     for _ in range(30):
@@ -322,14 +324,42 @@ def api_start() -> JSONResponse:
     return JSONResponse({"ok": pid is not None, "pid": pid})
 
 
+def _terminate_bot(pid: int) -> None:
+    """优雅停 bot 进程（跨平台）。
+
+    POSIX: SIGTERM 让 grid.py 的 _signal_handler 跑撤单清理。
+    Windows: 没有 SIGTERM，用 CTRL_BREAK_EVENT 发给进程组（前面 Popen 用了
+    CREATE_NEW_PROCESS_GROUP），grid.py 的 _signal_handler 也会捕获到。
+    """
+    if IS_WINDOWS:
+        try:
+            os.kill(pid, signal.CTRL_BREAK_EVENT)
+        except (OSError, AttributeError):
+            # 退化为 terminate
+            try:
+                psutil.Process(pid).terminate()
+            except psutil.Error:
+                pass
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+
+def _force_kill_bot(pid: int) -> None:
+    """超时兜底强杀。"""
+    try:
+        psutil.Process(pid).kill()  # 跨平台：POSIX=SIGKILL, Windows=TerminateProcess
+    except psutil.Error:
+        pass
+
+
 @app.post("/api/stop", dependencies=[Depends(require_login)])
 def api_stop() -> JSONResponse:
     pid = bot_pid()
     if pid is None:
         return JSONResponse({"ok": False, "error": "未在运行"}, status_code=409)
     try:
-        os.kill(pid, signal.SIGTERM)
-    except OSError as e:
+        _terminate_bot(pid)
+    except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
     # 等优雅退出，最多 30s（撤单 + 清理 db 可能耗时）
     for _ in range(300):
@@ -337,10 +367,7 @@ def api_stop() -> JSONResponse:
             return JSONResponse({"ok": True})
         time.sleep(0.1)
     # 兜底强杀
-    try:
-        os.kill(pid, signal.SIGKILL)
-    except OSError:
-        pass
+    _force_kill_bot(pid)
     for _ in range(20):
         if bot_pid() is None:
             break

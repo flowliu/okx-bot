@@ -894,6 +894,8 @@ def ai_main_loop():
     global _margin_check_tick
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
+    if hasattr(signal, "SIGBREAK"):  # Windows: webui 用 CTRL_BREAK_EVENT 优雅停
+        signal.signal(signal.SIGBREAK, _signal_handler)
 
     db.init_db()
     logger.info(f"进入 AI 驱动主循环,轮询 {config_loader.get("POLL_INTERVAL")}s,AI 间隔 {config.AI_INTERVAL_SEC}s")
@@ -982,6 +984,8 @@ def main_loop():
     global _margin_check_tick
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
+    if hasattr(signal, "SIGBREAK"):  # Windows: webui 用 CTRL_BREAK_EVENT 优雅停
+        signal.signal(signal.SIGBREAK, _signal_handler)
 
     logger.info(f"进入主循环,轮询间隔 {config_loader.get("POLL_INTERVAL")}s,Ctrl+C 退出")
     notify.info(f"网格策略已启动:{config.INST_ID} 资金 {config.TOTAL_USDT}U 杠杆 {config.LEVERAGE}x")

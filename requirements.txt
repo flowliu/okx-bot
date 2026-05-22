@@ -5,3 +5,4 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 itsdangerous>=2.2
+psutil>=5.9          # 跨平台进程探活与 stop（Windows 上 os.kill(pid,0) 会强杀）

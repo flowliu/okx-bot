@@ -71,7 +71,7 @@ python -c "import secrets;print(secrets.token_hex(32))"
 
 ### 4. Launch the Web Console
 
-**Recommended — use the helper script** (handles venv + .env loading + background):
+**macOS / Linux** — use `bot.sh`:
 
 ```bash
 ./bot.sh setup      # First time: create venv + install deps
@@ -83,10 +83,30 @@ python -c "import secrets;print(secrets.token_hex(32))"
 ./bot.sh run        # Foreground (dev mode, Ctrl+C to exit)
 ```
 
-Or manually:
+**Windows** — use `bot.ps1` (PowerShell):
+
+```powershell
+# First-time only, if you see an execution-policy error:
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+.\bot.ps1 setup
+.\bot.ps1 start
+.\bot.ps1 status
+.\bot.ps1 logs
+.\bot.ps1 stop
+```
+
+Or manually (any platform):
 
 ```bash
+# POSIX
 set -a; source .env; set +a
+python -m uvicorn webui:app --host 0.0.0.0 --port 8765
+```
+
+```powershell
+# Windows
+Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') } }
 python -m uvicorn webui:app --host 0.0.0.0 --port 8765
 ```
 

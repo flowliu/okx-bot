@@ -71,7 +71,7 @@ python -c "import secrets;print(secrets.token_hex(32))"
 
 ### 4. 启动 Web 控制台
 
-**推荐用 helper 脚本**（自动处理 venv + .env 加载 + 后台运行）：
+**macOS / Linux** — 用 `bot.sh`：
 
 ```bash
 ./bot.sh setup      # 首次：创建 venv + 装依赖
@@ -83,10 +83,30 @@ python -c "import secrets;print(secrets.token_hex(32))"
 ./bot.sh run        # 前台启动（开发，Ctrl+C 退出）
 ```
 
-或手动：
+**Windows** — 用 `bot.ps1`（PowerShell）：
+
+```powershell
+# 首次如遇 "无法加载文件" 错误：
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+.\bot.ps1 setup
+.\bot.ps1 start
+.\bot.ps1 status
+.\bot.ps1 logs
+.\bot.ps1 stop
+```
+
+或手动启动（任意平台）：
 
 ```bash
+# POSIX
 set -a; source .env; set +a
+python -m uvicorn webui:app --host 0.0.0.0 --port 8765
+```
+
+```powershell
+# Windows
+Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') } }
 python -m uvicorn webui:app --host 0.0.0.0 --port 8765
 ```
 

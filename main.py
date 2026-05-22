@@ -35,9 +35,13 @@ def _write_pid() -> None:
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
     atexit.register(_remove_pid)
-    # 启动阶段(ai_main_loop 之前) SIGTERM 直接 sys.exit 以触发 atexit 清 pid;
+    # 启动阶段(ai_main_loop 之前)收到停止信号直接 sys.exit 触发 atexit 清 pid;
     # 进入 ai_main_loop 后 grid.py 会注册自己的 handler 接管,做撤单清理。
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    handler = lambda *_: sys.exit(0)
+    signal.signal(signal.SIGTERM, handler)
+    # Windows 收不到 SIGTERM，webui 改发 CTRL_BREAK_EVENT (= SIGBREAK)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, handler)
 
 
 def _remove_pid() -> None:

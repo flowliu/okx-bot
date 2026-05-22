@@ -712,16 +712,6 @@ async function loadStats() {
   const td = data.today  || { net_pnl: 0, date: '' };
   const yd = data.yesterday || { net_pnl: 0, date: '' };
   document.getElementById('stats-summary').innerHTML = `
-    <div class="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
-      <div class="text-xs text-slate-500">${t('stats_today_net')}</div>
-      <div class="text-2xl font-bold mono ${colorFor(td.net_pnl)}">${fmt(td.net_pnl)}</div>
-      <div class="text-[10px] text-slate-400 mono mt-0.5">${td.date}</div>
-    </div>
-    <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
-      <div class="text-xs text-slate-500">${t('stats_yesterday_net')}</div>
-      <div class="text-2xl font-bold mono ${colorFor(yd.net_pnl)}">${fmt(yd.net_pnl)}</div>
-      <div class="text-[10px] text-slate-400 mono mt-0.5">${yd.date}</div>
-    </div>
     <div class="bg-slate-50 rounded-lg p-3">
       <div class="text-xs text-slate-500">${t('stats_total_trades')}</div>
       <div class="text-2xl font-bold mono">${tot.trades} / ${tot.closes}</div>
@@ -737,6 +727,16 @@ async function loadStats() {
     <div class="bg-slate-50 rounded-lg p-3">
       <div class="text-xs text-slate-500">${t('stats_net_pnl')}</div>
       <div class="text-2xl font-bold mono ${colorFor(tot.net_pnl)}">${fmt(tot.net_pnl)}</div>
+    </div>
+    <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
+      <div class="text-xs text-slate-500">${t('stats_yesterday_net')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(yd.net_pnl)}">${fmt(yd.net_pnl)}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">${yd.date}</div>
+    </div>
+    <div class="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+      <div class="text-xs text-slate-500">${t('stats_today_net')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(td.net_pnl)}">${fmt(td.net_pnl)}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">${td.date}</div>
     </div>
   `;
 
