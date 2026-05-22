@@ -898,7 +898,7 @@ def ai_main_loop():
         signal.signal(signal.SIGBREAK, _signal_handler)
 
     db.init_db()
-    logger.info(f"进入 AI 驱动主循环,轮询 {config_loader.get("POLL_INTERVAL")}s,AI 间隔 {config.AI_INTERVAL_SEC}s")
+    logger.info(f"进入 AI 驱动主循环,轮询 {config_loader.get('POLL_INTERVAL')}s,AI 间隔 {config.AI_INTERVAL_SEC}s")
     notify.info(f"AI 驱动模式启动:{config.INST_ID} 资金 {config.TOTAL_USDT}U 杠杆 {config.LEVERAGE}x")
     ai_advisor.start()
 
@@ -909,8 +909,8 @@ def ai_main_loop():
             sz = _calc_sz_per_grid(_get_last_price())
             logger.info(f"单 slot 张数={sz}")
         except Exception as e:
-            logger.warning(f"启动初始化拉价失败,{config_loader.get("POLL_INTERVAL")}s 后重试: {e}")
-            time.sleep(config_loader.get("POLL_INTERVAL"))
+            logger.warning(f"启动初始化拉价失败,{config_loader.get('POLL_INTERVAL')}s 后重试: {e}")
+            time.sleep(config_loader.get('POLL_INTERVAL'))
     if sz is None:
         logger.info("收到退出信号,启动阶段直接退出")
         ai_advisor.stop()
@@ -938,7 +938,7 @@ def ai_main_loop():
                 # 拉 pending 单
                 pending_map = _fetch_pending_orders_map()
                 if pending_map is None:
-                    time.sleep(config_loader.get("POLL_INTERVAL"))
+                    time.sleep(config_loader.get('POLL_INTERVAL'))
                     continue
 
                 # 推进所有活跃 slot 的状态
@@ -958,7 +958,7 @@ def ai_main_loop():
 
             except Exception as e:
                 logger.exception(f"AI 主循环异常: {e}")
-            time.sleep(config_loader.get("POLL_INTERVAL"))
+            time.sleep(config_loader.get('POLL_INTERVAL'))
     finally:
         ai_advisor.stop()
 
@@ -987,7 +987,7 @@ def main_loop():
     if hasattr(signal, "SIGBREAK"):  # Windows: webui 用 CTRL_BREAK_EVENT 优雅停
         signal.signal(signal.SIGBREAK, _signal_handler)
 
-    logger.info(f"进入主循环,轮询间隔 {config_loader.get("POLL_INTERVAL")}s,Ctrl+C 退出")
+    logger.info(f"进入主循环,轮询间隔 {config_loader.get('POLL_INTERVAL')}s,Ctrl+C 退出")
     notify.info(f"网格策略已启动:{config.INST_ID} 资金 {config.TOTAL_USDT}U 杠杆 {config.LEVERAGE}x")
     ai_advisor.start()
     _vacant_check_tick = 0
@@ -1025,7 +1025,7 @@ def main_loop():
                 pending_map = _fetch_pending_orders_map()
                 if pending_map is None:
                     logger.warning("本轮拉取 pending 订单失败,跳过这一轮(网络/代理问题)")
-                    time.sleep(config_loader.get("POLL_INTERVAL"))
+                    time.sleep(config_loader.get('POLL_INTERVAL'))
                     continue
 
                 # 对每个 DB 里有挂单的格位:
@@ -1051,7 +1051,7 @@ def main_loop():
             except Exception as e:
                 logger.exception(f"主循环异常: {e}")
 
-            time.sleep(config_loader.get("POLL_INTERVAL"))
+            time.sleep(config_loader.get('POLL_INTERVAL'))
     finally:
         ai_advisor.stop()
 
