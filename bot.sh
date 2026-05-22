@@ -44,7 +44,16 @@ _load_env() {
 }
 
 _pid() {
-  lsof -ti:"$PORT" 2>/dev/null | head -1
+  # 优先 lsof（macOS 默认；多数发行版需 yum/apt install lsof）
+  # 没装 lsof 时退化到 ss / fuser（Linux 通常自带）
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti:"$PORT" 2>/dev/null | head -1
+  elif command -v ss >/dev/null 2>&1; then
+    ss -lntp "sport = :$PORT" 2>/dev/null \
+      | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser "$PORT/tcp" 2>/dev/null | awk '{print $1}'
+  fi
 }
 
 cmd_setup() {
