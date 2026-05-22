@@ -18,8 +18,8 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from client import account_api
-import config
+from orbitai.data.client import account_api
+from orbitai.config import defaults as config
 
 
 def fetch_bills_in_range(begin_ms: int, end_ms: int, instType: str = "SWAP") -> list[dict]:
@@ -136,7 +136,9 @@ def parse_arg(arg: str) -> tuple[datetime, datetime, list[str]]:
     return start, end, [d.strftime("%Y-%m-%d") for d in days]
 
 
-def main(argv: list[str]) -> int:
+def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv
     arg = argv[1] if len(argv) > 1 else "today"
     start, end, day_keys = parse_arg(arg)
     begin_ms = int(start.timestamp() * 1000)

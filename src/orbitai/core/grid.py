@@ -22,12 +22,12 @@ import sys
 from decimal import Decimal, ROUND_DOWN
 from loguru import logger
 
-from client import account_api, trade_api, market_api, public_api
-import config
-import config_loader
-import db
-import notify
-import ai_advisor
+from orbitai.data.client import account_api, trade_api, market_api, public_api
+from orbitai.config import defaults as config
+from orbitai.config import loader as config_loader
+from orbitai.data import db as db
+from orbitai.util import notify as notify
+from orbitai.core import advisor as ai_advisor
 
 # ===== 全局只读: 合约规格 =====
 _TICK_SZ: Decimal = Decimal("0.01")   # 价格最小变动单位

@@ -1,0 +1,57 @@
+# Copyright (c) 2026 D.L <103242127@qq.com>
+# Licensed under the MIT License.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orbitai"
+version = "1.1.0"
+description = "AI-driven grid trading bot for OKX perpetual swaps"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "D.L", email = "103242127@qq.com" },
+]
+keywords = ["okx", "trading", "bot", "ai", "grid", "deepseek"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Office/Business :: Financial",
+]
+dependencies = [
+    "python-okx>=0.3.5",
+    "python-dotenv>=1.0.0",
+    "loguru>=0.7.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
+    "psutil>=5.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/flowliu/okx-bot"
+Source = "https://github.com/flowliu/okx-bot"
+"Bug Tracker" = "https://github.com/flowliu/okx-bot/issues"
+
+[project.scripts]
+orbitai           = "orbitai.cli.main:main"
+orbitai-bot       = "orbitai.cli.main:main"
+orbitai-stats     = "orbitai.cli.stats:main"
+orbitai-reset     = "orbitai.cli.reset:main"
+orbitai-check     = "orbitai.cli.check_conn:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"orbitai.web" = ["static/**/*", "prompts/*"]

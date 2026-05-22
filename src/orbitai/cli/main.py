@@ -18,17 +18,19 @@ import signal
 import sys
 import traceback
 from loguru import logger
-import grid
-from grid import (
+from orbitai.core import grid as grid
+from orbitai.core.grid import (
     initialize, main_loop, reconcile_on_startup,
     _load_instrument, _ensure_position_mode, _ensure_leverage, _get_last_price,
 )
-import db
-import config
-import config_loader
-import notify
+from orbitai.data import db as db
+from orbitai.config import defaults as config
+from orbitai.config import loader as config_loader
+from orbitai.util import notify as notify
 
-PID_FILE = os.path.join(os.path.dirname(__file__), "bot.pid")
+from orbitai import runtime as _rt
+
+PID_FILE = str(_rt.pid_file_path())
 
 
 def _write_pid() -> None:

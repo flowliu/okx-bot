@@ -40,18 +40,23 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-import branding
-import config_loader
-import llm_keys
-import stats as stats_mod
-import stats_db
+from orbitai.config import branding as branding
+from orbitai.config import loader as config_loader
+from orbitai.config import llm_keys as llm_keys
+from orbitai.cli import stats as stats_mod
+from orbitai.data import stats_db as stats_db
 
-ROOT = Path(__file__).parent
-PID_FILE = ROOT / "bot.pid"
-LOG_DIR = ROOT / "logs"
-PROMPT_FILE = ROOT / "prompts" / "scalp.txt"
-PROMPT_DEFAULT_FILE = ROOT / "prompts" / "scalp.default.txt"
-STATIC_DIR = ROOT / "static"
+from orbitai import runtime as _rt
+
+# 运行时数据目录（用户态，可写）
+ROOT = _rt.DATA_DIR
+PID_FILE = _rt.pid_file_path()
+LOG_DIR = _rt.logs_dir()
+PROMPT_FILE = _rt.user_prompt_path()
+# 默认 prompt 模板：包内打包资源（只读）
+PROMPT_DEFAULT_FILE = _rt.PROMPT_DEFAULT_PACKAGE_FILE
+# 静态资源：包内打包
+STATIC_DIR = _rt.WEB_STATIC_DIR
 
 REQUIRED_PLACEHOLDERS = ("{inst_id}", "{bar}", "{last_px", "{max_n}", "{kl_lines}")
 
@@ -299,20 +304,22 @@ def api_status() -> JSONResponse:
 def api_start() -> JSONResponse:
     if bot_pid() is not None:
         return JSONResponse({"ok": False, "error": "已在运行"}, status_code=409)
-    py = ROOT / ".venv" / "bin" / "python"
-    if not py.exists():
-        py = Path("python3")
+    # 用当前解释器（确保跟 webui 跑在同一个 venv），通过 -m 启动 cli 入口
+    py = sys.executable
     LOG_DIR.mkdir(exist_ok=True)
     out = LOG_DIR / "bot.stdout.log"
     err = LOG_DIR / "bot.stderr.log"
+    env = os.environ.copy()
+    env["ORBITAI_DATA"] = str(ROOT)  # 子进程也使用同一份数据目录
     global _bot_popen
     # 用 with 块持有 fd, 子进程 fork 后父端就能关闭（POSIX 下子进程已 dup 了 fd）
     with open(out, "ab") as fout, open(err, "ab") as ferr:
         _bot_popen = subprocess.Popen(
-            [str(py), "main.py"],
+            [py, "-m", "orbitai.cli.main"],
             cwd=str(ROOT),
             stdout=fout,
             stderr=ferr,
+            env=env,
             **POPEN_EXTRA,
         )
     # 等 pid 文件落盘
@@ -480,16 +487,16 @@ def api_reset() -> JSONResponse:
     """
     if bot_pid() is not None:
         return JSONResponse({"ok": False, "error": "Bot 仍在运行，请先停止"}, status_code=409)
-    py = ROOT / ".venv" / "bin" / "python"
-    if not py.exists():
-        py = Path("python3")
+    env = os.environ.copy()
+    env["ORBITAI_DATA"] = str(ROOT)
     try:
         proc = subprocess.run(
-            [str(py), "reset.py"],
+            [sys.executable, "-m", "orbitai.cli.reset"],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         return JSONResponse({"ok": False, "error": "reset.py 超时（>120s）"}, status_code=504)

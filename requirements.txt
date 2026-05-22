@@ -1,8 +1,3 @@
-python-okx>=0.3.5
-python-dotenv>=1.0.0
-loguru>=0.7.2
-fastapi>=0.115
-uvicorn[standard]>=0.30
-python-multipart>=0.0.9
-itsdangerous>=2.2
-psutil>=5.9          # 跨平台进程探活与 stop（Windows 上 os.kill(pid,0) 会强杀）
+# OrbitAI dependencies are declared in pyproject.toml.
+# This file exists so `pip install -r requirements.txt` still works.
+-e .

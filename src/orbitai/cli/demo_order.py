@@ -20,7 +20,7 @@
 import time
 import sys
 from loguru import logger
-from client import market_api, public_api, trade_api, is_simulated
+from orbitai.data.client import market_api, public_api, trade_api, is_simulated
 
 INST_ID = "ETH-USDT-SWAP"
 TD_MODE = "cross"   # 全仓保证金;网格用全仓更稳,逐仓爆单只是单合约

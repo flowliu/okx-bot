@@ -52,8 +52,8 @@ cmd_setup() {
   if [ ! -d .venv ]; then
     python3 -m venv .venv
   fi
-  echo "${CYN}▶ 安装依赖${NC}"
-  ./.venv/bin/pip install -r requirements.txt
+  echo "${CYN}▶ 安装 orbitai 包（editable 模式）${NC}"
+  ./.venv/bin/pip install -e .
   if [ ! -f .env ]; then
     cp .env.example .env
     echo "${YLW}⚠ 已创建 .env，请编辑后填入凭证${NC}"
@@ -70,7 +70,7 @@ cmd_start() {
   mkdir -p logs
   _load_env
   echo "${CYN}▶ 启动 webui http://$HOST:$PORT${NC}"
-  nohup "$PY" -m uvicorn webui:app --host "$HOST" --port "$PORT" \
+  nohup "$PY" -m uvicorn orbitai.web.app:app --host "$HOST" --port "$PORT" \
     >> "$WEBUI_LOG" 2>&1 &
   disown
   # 等就绪
@@ -143,7 +143,7 @@ cmd_run() {
   _check_env
   _load_env
   echo "${CYN}▶ 前台启动 webui http://$HOST:$PORT  (Ctrl+C 退出)${NC}"
-  exec "$PY" -m uvicorn webui:app --host "$HOST" --port "$PORT"
+  exec "$PY" -m uvicorn orbitai.web.app:app --host "$HOST" --port "$PORT"
 }
 
 cmd_help() {

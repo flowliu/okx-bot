@@ -26,14 +26,14 @@ from typing import Optional
 from dotenv import load_dotenv
 from loguru import logger
 
-import config
-import config_loader
-from client import market_api
-import db
+from orbitai.config import defaults as config
+from orbitai.config import loader as config_loader
+from orbitai.data.client import market_api
+from orbitai.data import db as db
 
 load_dotenv()
 
-import llm_keys
+from orbitai.config import llm_keys as llm_keys
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -55,17 +55,20 @@ def _current_provider() -> dict:
         "key": llm_keys.get_key(name),
     }
 
-# Prompt 模板从文件加载，UI 可以热修改。文件位置 prompts/scalp.txt
-PROMPT_FILE = os.path.join(os.path.dirname(__file__), "prompts", "scalp.txt")
-
+# Prompt 模板从文件加载，UI 可以热修改。
+# 文件位于 DATA_DIR/prompts/scalp.txt（首次使用时自动从包内 default 模板复制）
+from orbitai import runtime as _rt
 
 def _load_prompt_template() -> str:
     try:
-        with open(PROMPT_FILE, "r", encoding="utf-8") as f:
-            return f.read()
+        path = _rt.ensure_user_prompt()
+        return path.read_text(encoding="utf-8")
     except OSError as e:
-        logger.warning(f"[AI] 读取 prompt 文件失败 {PROMPT_FILE}: {e}")
+        logger.warning(f"[AI] 读取 prompt 文件失败: {e}")
         return ""
+
+
+PROMPT_FILE = str(_rt.user_prompt_path())  # 仍暴露常量供调试 / 兼容
 
 
 # ============================================================

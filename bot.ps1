@@ -65,8 +65,8 @@ function Cmd-Setup {
     if (-not (Test-Path ".venv")) {
         python -m venv .venv
     }
-    Write-Host "[*] 安装依赖" -ForegroundColor Cyan
-    & .\.venv\Scripts\pip.exe install -r requirements.txt
+    Write-Host "[*] 安装 orbitai 包 (editable)" -ForegroundColor Cyan
+    & .\.venv\Scripts\pip.exe install -e .
     if (-not (Test-Path ".env")) {
         Copy-Item .env.example .env
         Write-Host "[!] 已创建 .env，请编辑后填入凭证" -ForegroundColor Yellow
@@ -84,7 +84,7 @@ function Cmd-Start {
     if (-not (Test-Path "logs")) { New-Item -ItemType Directory -Path "logs" | Out-Null }
     _LoadEnv
     Write-Host "[*] 启动 webui http://${HostIp}:${Port}" -ForegroundColor Cyan
-    $args = "-m uvicorn webui:app --host $HostIp --port $Port"
+    $args = "-m uvicorn orbitai.web.app:app --host $HostIp --port $Port"
     $proc = Start-Process -FilePath $Py -ArgumentList $args `
         -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $WebLog `
@@ -162,7 +162,7 @@ function Cmd-Run {
     _CheckEnv
     _LoadEnv
     Write-Host "[*] 前台启动 webui http://${HostIp}:${Port}  (Ctrl+C 退出)" -ForegroundColor Cyan
-    & $Py -m uvicorn webui:app --host $HostIp --port $Port
+    & $Py -m uvicorn orbitai.web.app:app --host $HostIp --port $Port
 }
 
 function Cmd-Help {

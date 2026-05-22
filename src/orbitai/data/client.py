@@ -14,7 +14,7 @@ from okx.Trade import TradeAPI
 from okx.MarketData import MarketAPI
 from okx.PublicData import PublicAPI
 
-import config_loader
+from orbitai.config import loader as config_loader
 
 load_dotenv()
 

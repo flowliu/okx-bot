@@ -10,7 +10,10 @@
 import sqlite3
 import time
 from contextlib import contextmanager
-from config import DB_PATH
+from orbitai.config.defaults import DB_PATH as _DB_NAME
+from orbitai import runtime as _rt
+
+DB_PATH = _rt.db_path(_DB_NAME)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS grids (

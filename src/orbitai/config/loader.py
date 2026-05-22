@@ -14,9 +14,10 @@ import threading
 import time
 from typing import Any
 
-import config as _defaults
+from orbitai.config import defaults as _defaults
+from orbitai import runtime as _rt
 
-RUNTIME_FILE = os.path.join(os.path.dirname(__file__), "runtime_config.json")
+RUNTIME_FILE = str(_rt.runtime_config_path())
 _lock = threading.Lock()
 
 

@@ -11,7 +11,9 @@ import threading
 from contextlib import contextmanager
 from typing import Iterator
 
-DB_FILE = os.path.join(os.path.dirname(__file__), "stats.db")
+from orbitai import runtime as _rt
+
+DB_FILE = _rt.db_path("stats.db")
 _lock = threading.Lock()
 
 

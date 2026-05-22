@@ -10,10 +10,10 @@ trades 表保留作为历史。
 """
 import time
 from loguru import logger
-from grid import cancel_all_orders, close_all_positions
-from client import account_api
-import config
-import db
+from orbitai.core.grid import cancel_all_orders, close_all_positions
+from orbitai.data.client import account_api
+from orbitai.config import defaults as config
+from orbitai.data import db as db
 
 
 def main():

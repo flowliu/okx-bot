@@ -11,7 +11,9 @@ import threading
 import time
 from typing import Any
 
-KEYS_FILE = os.path.join(os.path.dirname(__file__), "llm_keys.json")
+from orbitai import runtime as _rt
+
+KEYS_FILE = str(_rt.llm_keys_path())
 _lock = threading.Lock()
 
 # provider 元数据：

@@ -54,8 +54,10 @@ cd okx-bot
 
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e .            # editable 安装，源码改动立即生效
 ```
+
+> 安装完成后会有 4 个 CLI 命令：`orbitai-bot` / `orbitai-stats` / `orbitai-reset` / `orbitai-check`。
 
 ### 3. 配置
 
@@ -284,28 +286,39 @@ tail -f logs/grid_$(date +%Y-%m-%d).log
 
 ```
 okx-bot/
-├── main.py                 # Bot 启动入口
-├── webui.py                # Web 控制台后端
-├── grid.py                 # 网格策略核心
-├── ai_advisor.py           # AI 决策模块
-├── llm_keys.py             # 多厂商密钥管理
-├── config.py               # 默认配置（不要改，改 runtime_config.json）
-├── config_loader.py        # 配置加载（含 overlay）
-├── client.py               # OKX SDK 客户端工厂
-├── db.py                   # 交易状态 SQLite
-├── stats_db.py             # 每日收益缓存 SQLite
-├── stats.py                # CLI 统计工具
-├── notify.py               # 日志告警
-├── reset.py                # 重置脚本
-├── branding.py             # 版本/版权（HMAC 签名）
-├── prompts/
-│   ├── scalp.txt           # AI 提示词（可热编辑）
-│   └── scalp.default.txt   # 默认模板（用于初始化）
-├── static/
-│   └── index.html          # Web 控制台前端
+├── pyproject.toml          # 包元数据 / 依赖 / CLI 入口
+├── bot.sh / bot.ps1        # 一键启停脚本
 ├── .env.example            # 环境变量模板
-├── requirements.txt
+├── prompts/scalp.txt       # 用户可编辑的 AI Prompt（首次启动从包内 default 拷贝）
+├── src/
+│   └── orbitai/
+│       ├── runtime.py      # DATA_DIR / 路径定位
+│       ├── cli/            # CLI 入口
+│       │   ├── main.py     #   orbitai-bot: Bot 进程入口
+│       │   ├── stats.py    #   orbitai-stats: 每日收益统计
+│       │   ├── reset.py    #   orbitai-reset: 撤单 + 平仓 + 清 DB
+│       │   ├── check_conn.py  # orbitai-check: OKX 连通性测试
+│       │   └── demo_order.py
+│       ├── core/           # 策略核心
+│       │   ├── grid.py     # 网格调度 / 订单状态机
+│       │   └── advisor.py  # 多 LLM AI 决策
+│       ├── data/           # 数据访问
+│       │   ├── db.py       # 交易状态 SQLite
+│       │   ├── stats_db.py # 每日收益缓存
+│       │   └── client.py   # OKX SDK 工厂
+│       ├── config/
+│       │   ├── defaults.py # config.py 默认值
+│       │   ├── loader.py   # runtime_config.json overlay
+│       │   ├── llm_keys.py # 7 厂商密钥管理
+│       │   └── branding.py # 版本/版权（HMAC 签名）
+│       ├── util/notify.py  # 日志告警
+│       └── web/            # Web 控制台
+│           ├── app.py      # FastAPI 后端
+│           ├── static/     # 前端 HTML/JS（含 i18n + chart.js）
+│           └── prompts/scalp.default.txt  # 包内默认 prompt
+├── data/                   # （运行时生成）grid.db / stats.db / logs / bot.pid …
 ├── LICENSE
+├── CHANGELOG.md
 └── README.md / README.en.md
 ```
 

@@ -54,8 +54,10 @@ cd okx-bot
 
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e .          # editable install — source changes apply immediately
 ```
+
+> Installs 4 CLI commands: `orbitai-bot` / `orbitai-stats` / `orbitai-reset` / `orbitai-check`.
 
 ### 3. Configure
 
@@ -285,28 +287,39 @@ tail -f logs/grid_$(date +%Y-%m-%d).log
 
 ```
 okx-bot/
-├── main.py                 # Bot entrypoint
-├── webui.py                # Web console backend
-├── grid.py                 # Grid strategy core
-├── ai_advisor.py           # AI decision module
-├── llm_keys.py             # Multi-provider key store
-├── config.py               # Defaults (do not edit; edit runtime_config.json)
-├── config_loader.py        # Config loader (with overlay)
-├── client.py               # OKX SDK client factory
-├── db.py                   # Trade state SQLite
-├── stats_db.py             # Daily P&L SQLite
-├── stats.py                # CLI stats tool
-├── notify.py               # Log alerting
-├── reset.py                # Reset script
-├── branding.py             # Version/copyright (HMAC-signed)
-├── prompts/
-│   ├── scalp.txt           # AI prompt (hot-editable)
-│   └── scalp.default.txt   # Default template (used for init)
-├── static/
-│   └── index.html          # Web console frontend
+├── pyproject.toml          # Package metadata / deps / CLI entry points
+├── bot.sh / bot.ps1        # Helper script (POSIX / Windows)
 ├── .env.example            # Environment variable template
-├── requirements.txt
+├── prompts/scalp.txt       # User-editable AI prompt (auto-copied from default on first run)
+├── src/
+│   └── orbitai/
+│       ├── runtime.py      # DATA_DIR / path resolution
+│       ├── cli/            # CLI entry points
+│       │   ├── main.py     #   orbitai-bot
+│       │   ├── stats.py    #   orbitai-stats
+│       │   ├── reset.py    #   orbitai-reset
+│       │   ├── check_conn.py  # orbitai-check
+│       │   └── demo_order.py
+│       ├── core/           # Strategy core
+│       │   ├── grid.py     # Grid scheduling / order state machine
+│       │   └── advisor.py  # Multi-LLM AI decisions
+│       ├── data/           # Persistence
+│       │   ├── db.py       # Trade state SQLite
+│       │   ├── stats_db.py # Daily P&L cache
+│       │   └── client.py   # OKX SDK factory
+│       ├── config/
+│       │   ├── defaults.py # Default values
+│       │   ├── loader.py   # runtime_config.json overlay
+│       │   ├── llm_keys.py # 7-provider key store
+│       │   └── branding.py # Version / copyright (HMAC-signed)
+│       ├── util/notify.py  # Log alerting
+│       └── web/            # Web console
+│           ├── app.py      # FastAPI backend
+│           ├── static/     # Frontend HTML/JS (i18n + chart.js)
+│           └── prompts/scalp.default.txt  # Bundled default prompt
+├── data/                   # (runtime) grid.db / stats.db / logs / bot.pid …
 ├── LICENSE
+├── CHANGELOG.md
 └── README.md / README.en.md
 ```
 

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] — 2026-05-22
+
+🏗 **Restructure & cross-platform release**
+
+### Changed — 重构 / Breaking
+- 整体目录改为 src-layout，所有 Python 模块迁入 `src/orbitai/{cli,core,data,config,util,web}/`
+- `pyproject.toml` 接管包管理；安装方式改为 `pip install -e .`
+- CLI 重命名为正式入口：
+  - `python main.py`       → `orbitai-bot`
+  - `python stats.py …`    → `orbitai-stats …`
+  - `python reset.py`      → `orbitai-reset`
+  - `python check_conn.py` → `orbitai-check`
+- webui 模块从 `webui:app` 迁到 `orbitai.web.app:app`
+- 持久化路径走 `ORBITAI_DATA` 环境变量（默认 CWD），`runtime.py` 集中管理
+
+### Added — 新增
+- 跨平台进程管理（psutil 替代 `os.kill(pid, 0)`，Windows 上后者会触发 TerminateProcess）
+- Windows 启动脚本 `bot.ps1`（PowerShell）
+- `SIGBREAK` handler（Windows 上替代 SIGTERM）
+- 顶栏服务器时区 chip（CST +08:00 等）
+- 统计页 6 张卡片新顺序：总笔数/盈亏/手续费/净收益/昨日净收益/今日净收益
+- 明细表展示限制 15 行
+- 浏览器语言自动检测（zh-* / en-*）
+
+### Fixed — 修复
+- chart.js 本地化，消除 CSP `connect-src 'self'` 阻断 sourcemap 的报错
+- CSP 收紧（移除 jsdelivr.net 依赖）
+- `loadStats()` 内部 `const t = data.total` 导致 TDZ 覆盖全局 `t()` i18n 函数，改名 `tot`
+- OKX `50013 Systems are busy` 自动重试（指数退避，5-8 次）
+- 启动期 `set_position_mode` / `set_leverage` 幂等失败不阻塞主循环
+
+### Security
+- 强制启动期校验：弱密码 / 短 `WEBUI_SECRET` 直接拒绝运行
+- 登录限流：5 次失败按 IP 锁 10 分钟
+- `hmac.compare_digest` 常数时间比较 + 登录后 session 旋转
+- CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy / HSTS 全套响应头
+- `subprocess.Popen` 文件描述符 with 块管理
+
+---
+
 ## [1.0.0] — 2026-05-22
 
 🎉 **首次开源发布 / Initial open source release**
