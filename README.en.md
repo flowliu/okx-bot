@@ -103,13 +103,13 @@ Or manually (any platform):
 ```bash
 # POSIX
 set -a; source .env; set +a
-python -m uvicorn webui:app --host 0.0.0.0 --port 8765
+python -m uvicorn orbitai.web.app:app --host 0.0.0.0 --port 8765
 ```
 
 ```powershell
 # Windows
 Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') } }
-python -m uvicorn webui:app --host 0.0.0.0 --port 8765
+python -m uvicorn orbitai.web.app:app --host 0.0.0.0 --port 8765
 ```
 
 Open <http://localhost:8765> and log in with `WEBUI_USER` / `WEBUI_PASS` from `.env`. From here you can:
@@ -122,20 +122,31 @@ Open <http://localhost:8765> and log in with `WEBUI_USER` / `WEBUI_PASS` from `.
 
 ### 5. Command-line usage (no Web UI required)
 
+After `pip install -e .`, four CLI commands are on your PATH:
+
 ```bash
 # Run the bot directly
-python main.py
+orbitai-bot
 
 # Daily P&L
-python stats.py today
-python stats.py week
-python stats.py 2026-05-20
+orbitai-stats today
+orbitai-stats week
+orbitai-stats 2026-05-20
 
 # One-shot reset (cancel orders + market-close positions + wipe DB)
-python reset.py
+orbitai-reset
 
 # Test OKX connectivity
-python check_conn.py
+orbitai-check
+```
+
+Equivalent `python -m` form:
+
+```bash
+python -m orbitai.cli.main          # = orbitai-bot
+python -m orbitai.cli.stats today
+python -m orbitai.cli.reset
+python -m orbitai.cli.check_conn
 ```
 
 ---
@@ -272,7 +283,7 @@ Switch via Web UI → **Params → OKX_DOMAIN**.
 
 ```bash
 # Webui dev mode (auto-reload)
-python -m uvicorn webui:app --reload --port 8765
+python -m uvicorn orbitai.web.app:app --reload --port 8765
 
 # Single AI decision (dry run)
 python -c "import ai_advisor; print(ai_advisor._refresh_once())"

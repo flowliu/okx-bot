@@ -103,13 +103,13 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```bash
 # POSIX
 set -a; source .env; set +a
-python -m uvicorn webui:app --host 0.0.0.0 --port 8765
+python -m uvicorn orbitai.web.app:app --host 0.0.0.0 --port 8765
 ```
 
 ```powershell
 # Windows
 Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') } }
-python -m uvicorn webui:app --host 0.0.0.0 --port 8765
+python -m uvicorn orbitai.web.app:app --host 0.0.0.0 --port 8765
 ```
 
 浏览器打开 <http://localhost:8765>，用 `.env` 里的 `WEBUI_USER/WEBUI_PASS` 登录后，可以：
@@ -122,20 +122,31 @@ python -m uvicorn webui:app --host 0.0.0.0 --port 8765
 
 ### 5. 命令行使用（不用 Web UI 也行）
 
+`pip install -e .` 之后，4 个 CLI 命令直接在 PATH 里：
+
 ```bash
 # 直接跑 Bot
-python main.py
+orbitai-bot
 
 # 查看每日收益
-python stats.py today
-python stats.py week
-python stats.py 2026-05-20
+orbitai-stats today
+orbitai-stats week
+orbitai-stats 2026-05-20
 
 # 一键重置（撤单 + 平仓 + 清 DB）
-python reset.py
+orbitai-reset
 
 # 测试 OKX 连通性
-python check_conn.py
+orbitai-check
+```
+
+或者用 `python -m`：
+
+```bash
+python -m orbitai.cli.main      # = orbitai-bot
+python -m orbitai.cli.stats today
+python -m orbitai.cli.reset
+python -m orbitai.cli.check_conn
 ```
 
 ---
@@ -271,7 +282,7 @@ python check_conn.py
 
 ```bash
 # 启动 webui dev 模式（修改自动重载）
-python -m uvicorn webui:app --reload --port 8765
+python -m uvicorn orbitai.web.app:app --reload --port 8765
 
 # 单步测 AI 决策
 python -c "import ai_advisor; print(ai_advisor._refresh_once())"

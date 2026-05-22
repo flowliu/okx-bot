@@ -22,8 +22,8 @@ import hashlib
 
 # ----- 内部签名材料（请勿单独修改） -----
 _SECRET: bytes = b"okx-bot-brand-integrity-v1-do-not-share"
-_DATA_B64: str = "QUlQcm9tcHR8aHR0cHM6Ly93d3cuYWlwcm9tcHQudmlwL3wxLjAuMA=="
-_SIGNATURE: str = "857091d69e88abe407d4218acd0855cfafad80cef4109185ffe545ec5f50c8f6"
+_DATA_B64: str = "QUlQcm9tcHR8aHR0cHM6Ly93d3cuYWlwcm9tcHQudmlwL3wxLjEuMA=="
+_SIGNATURE: str = "41494951095a77ef3b4b710783628752fc53831c1757524035d4d132099b5df2"
 
 
 def _decoded() -> bytes:
