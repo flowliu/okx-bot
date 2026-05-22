@@ -418,10 +418,26 @@ async function loadStatus() {
 }
 
 document.getElementById('btn-start').addEventListener('click', async () => {
-  const r = await API('/api/start', { method: 'POST' });
-  const j = await r.json();
-  if (!r.ok) alert(j.error || t('start_fail'));
-  await loadStatus();
+  const btn = document.getElementById('btn-start');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = t('btn_running');
+  btn.className = 'bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-sm cursor-not-allowed opacity-80';
+  try {
+    const r = await API('/api/start', { method: 'POST' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      // 失败时把 stderr 尾巴展示出来
+      let msg = j.error || t('start_fail');
+      if (j.stderr_tail) msg += '\n\n' + j.stderr_tail;
+      alert(msg);
+    }
+  } catch (e) {
+    alert(t('start_fail') + ': ' + e.message);
+  } finally {
+    // loadStatus 会按真实状态把按钮设为「运行中」（绿色禁用）或「启动」（蓝色可点）
+    await loadStatus();
+  }
 });
 
 document.getElementById('btn-stop').addEventListener('click', async () => {

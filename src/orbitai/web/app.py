@@ -322,13 +322,35 @@ def api_start() -> JSONResponse:
             env=env,
             **POPEN_EXTRA,
         )
-    # 等 pid 文件落盘
-    for _ in range(30):
-        if bot_pid() is not None:
+    # 等 pid 文件落盘（最多 8 秒；TLS 握手 / OKX 调用 / venv 加载都可能稍慢）
+    pid = None
+    for _ in range(80):
+        if _bot_popen.poll() is not None:
+            # 子进程已退出（启动失败），无需再等 pid
+            break
+        pid = bot_pid()
+        if pid is not None:
             break
         time.sleep(0.1)
-    pid = bot_pid()
-    return JSONResponse({"ok": pid is not None, "pid": pid})
+
+    if pid is not None:
+        return JSONResponse({"ok": True, "pid": pid})
+
+    # 启动失败：把 stderr 尾巴返给前端，方便用户排查
+    rc = _bot_popen.poll() if _bot_popen else None
+    err_tail = ""
+    try:
+        err_text = err.read_text(encoding="utf-8", errors="replace")
+        err_tail = "\n".join(err_text.strip().splitlines()[-20:])
+    except OSError:
+        pass
+    return JSONResponse({
+        "ok": False,
+        "pid": None,
+        "returncode": rc,
+        "error": f"Bot 进程未能启动（returncode={rc}）。日志尾部：",
+        "stderr_tail": err_tail or "（stderr 为空，看 logs/bot.stdout.log）",
+    }, status_code=500)
 
 
 def _terminate_bot(pid: int) -> None:
