@@ -178,13 +178,10 @@ def _calc_sz_per_grid(center: float) -> float:
 
 
 def _calc_sz_per_ai_order(center: float) -> float:
-    """AI 模式：每对包含 open + close 两笔单 → 分母用 max_orders × 2。
+    """AI 模式：每对 open + close 两笔单 → 分母用 max_orders × 2，乘 0.6 缓冲。
 
-    例：TOTAL_USDT=2000 杠杆=2 max_orders=20 → 名义 / 单 = 2*2000/(20*2) = 100 USDT。
-    避免实际名义膨胀到机械网格 sz 的 2 倍导致保证金不足 (51008)。
-
-    再额外乘 0.6 保留缓冲：AI 经常一对挂在区间内同时存在 open 单 + close 单
-    （持仓被锁），且历史 slot 的 close 单不会立刻撤；缓冲可吸收叠加。
+    资金小到算出的 sz < minSz 时 fallback 到 minSz 并打 warning，
+    让低资金账户也能跑（单笔利润可能很薄，预期会有提示）。
     """
     max_orders = max(1, int(config_loader.get("AI_MAX_ORDERS_PER_CALL") or 20))
     leverage = max(1, int(config_loader.get("LEVERAGE") or 1))
@@ -193,11 +190,16 @@ def _calc_sz_per_ai_order(center: float) -> float:
     notional_per_order = total_usdt * leverage / (max_orders * 2) * BUFFER
     eth_per_order = notional_per_order / center
     sz = eth_per_order / float(_CT_VAL)
-    if sz < float(_MIN_SZ):
-        raise ValueError(
-            f"AI 单订单张数 {sz:.4f} 低于最小张数 {_MIN_SZ}。"
-            f"请增加 TOTAL_USDT 或减少 AI_MAX_ORDERS_PER_CALL。"
+    min_sz = float(_MIN_SZ)
+    if sz < min_sz:
+        min_notional = min_sz * float(_CT_VAL) * center
+        logger.warning(
+            f"⚠ 资金不足以铺满 AI 梯度: 算出 sz={sz:.4f} < minSz={min_sz} "
+            f"(资金={total_usdt}U 杠杆={leverage}x max_orders={max_orders}) "
+            f"自动 fallback 到 minSz；单订单名义约 {min_notional:.1f} USDT，"
+            f"利润可能不足覆盖手续费。建议加资金 / 减小 AI_MAX_ORDERS_PER_CALL / 加杠杆"
         )
+        return min_sz
     return float(_round_sz(sz))
 
 

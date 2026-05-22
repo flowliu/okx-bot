@@ -367,6 +367,77 @@ def api_status() -> JSONResponse:
     })
 
 
+@app.get("/api/preflight", dependencies=[Depends(require_login)])
+def api_preflight() -> JSONResponse:
+    """启动 bot 前的体检：账户余额 / 单订单名义 / 警告。
+    只读 OKX 接口，前端在用户点「启动」时调用，把 warnings 弹给用户确认。
+    """
+    from orbitai.data.client import account_api
+    warnings: list[str] = []
+
+    avail = 0.0
+    eq = 0.0
+    try:
+        bal = account_api().get_account_balance(ccy="USDT")
+        if bal.get("code") == "0":
+            details = (bal.get("data") or [{}])[0].get("details", [])
+            usdt = next((d for d in details if d.get("ccy") == "USDT"), {})
+            avail = float(usdt.get("availBal") or 0)
+            eq = float(usdt.get("eq") or 0)
+        else:
+            warnings.append(f"OKX 账户查询失败: {bal.get('msg', '未知错误')}")
+    except Exception as e:
+        warnings.append(f"OKX 账户查询异常: {e}")
+
+    total_usdt = float(config_loader.get("TOTAL_USDT") or 0)
+    leverage = max(1, int(config_loader.get("LEVERAGE") or 1))
+    max_orders = max(1, int(config_loader.get("AI_MAX_ORDERS_PER_CALL") or 20))
+    ai_driven = bool(config_loader.get("AI_DRIVEN_MODE"))
+
+    # 估算（按当前价 = 标的不重要，用 2000 USDT 作近似名义校验上限）
+    BUFFER = 0.6
+    notional_per_order = total_usdt * leverage / (max_orders * 2) * BUFFER if ai_driven else \
+                          total_usdt * leverage / max(1, int(config_loader.get("GRID_COUNT") or 20))
+    round_notional = notional_per_order * (max_orders * 2 if ai_driven else int(config_loader.get("GRID_COUNT") or 20))
+    round_margin = round_notional / leverage
+
+    if eq > 0 and avail < total_usdt:
+        warnings.append(
+            f"配置 TOTAL_USDT={total_usdt} 大于账户可用 {avail:.2f}，"
+            f"建议把 TOTAL_USDT 调到 ≤ {int(avail * 0.9)}"
+        )
+    if eq > 0 and avail < 100:
+        warnings.append(
+            f"账户可用资金仅 {avail:.2f} USDT，AI 模式建议 ≥ 500 USDT。"
+            f"继续可能频繁触发 51008（保证金不足）。"
+        )
+    if ai_driven and notional_per_order < 50:
+        warnings.append(
+            f"单订单名义价值约 {notional_per_order:.1f} USDT（< 50），"
+            f"AI 网格预期净利极低，可能不覆盖手续费。"
+            f"建议加大 TOTAL_USDT、加杠杆，或减少 AI_MAX_ORDERS_PER_CALL。"
+        )
+    if eq > 0 and round_margin > avail * 0.8:
+        warnings.append(
+            f"单轮保证金占用 ~{round_margin:.0f} USDT 接近可用 {avail:.0f} USDT 的 80%，"
+            f"叠加历史挂单极易爆 51008。"
+        )
+
+    return JSONResponse({
+        "ok": True,
+        "balance": {"eq": eq, "avail": avail},
+        "estimate": {
+            "ai_driven": ai_driven,
+            "notional_per_order": round(notional_per_order, 1),
+            "round_margin": round(round_margin, 1),
+            "max_orders": max_orders,
+            "leverage": leverage,
+            "total_usdt": total_usdt,
+        },
+        "warnings": warnings,
+    })
+
+
 @app.post("/api/start", dependencies=[Depends(require_signed)])
 def api_start() -> JSONResponse:
     if bot_pid() is not None:

@@ -498,6 +498,32 @@ async function refreshLogPanel() {
 
 document.getElementById('btn-start').addEventListener('click', async () => {
   const btn = document.getElementById('btn-start');
+
+  // 体检：拉账户余额 + 估算，若有 warning 弹 confirm 让用户确认
+  try {
+    const pre = await API('/api/preflight');
+    if (pre.ok) {
+      const data = await pre.json();
+      if (data.warnings && data.warnings.length > 0) {
+        const info = data.estimate || {};
+        const bal  = data.balance  || {};
+        const lines = [
+          '⚠ 启动前体检发现以下问题：',
+          '',
+          ...data.warnings.map((w, i) => `${i + 1}. ${w}`),
+          '',
+          `账户可用: ${bal.avail?.toFixed?.(2) ?? bal.avail} USDT`,
+          `单订单名义: ~${info.notional_per_order} USDT`,
+          `单轮保证金: ~${info.round_margin} USDT`,
+          `配置: 资金=${info.total_usdt} 杠杆=${info.leverage}x max_orders=${info.max_orders}`,
+          '',
+          '仍要启动？',
+        ].join('\n');
+        if (!confirm(lines)) return;
+      }
+    }
+  } catch (_) { /* preflight 失败不阻塞启动 */ }
+
   btn.disabled = true;
   btn.textContent = t('btn_running');
   btn.className = 'bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-sm cursor-not-allowed opacity-80';
