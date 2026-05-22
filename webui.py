@@ -356,8 +356,12 @@ def api_stop() -> JSONResponse:
 
 @app.get("/api/about")
 def api_about() -> JSONResponse:
-    """返回经签名校验的品牌信息与版本号。可未登录访问（用于页脚显示）。"""
-    return JSONResponse(branding.info())
+    """返回品牌信息 + 版本 + 服务器时区。可未登录访问（页脚 / 顶栏用）。"""
+    info = branding.info()
+    now = datetime.now().astimezone()
+    info["tz"] = time.strftime("%Z")  # e.g. CST / UTC / JST
+    info["tz_offset"] = now.strftime("%z")  # e.g. +0800
+    return JSONResponse(info)
 
 
 # ---------- 配置文件健康检查 / 初始化 ----------
@@ -686,6 +690,15 @@ def api_stats(days: int = 7) -> JSONResponse:
     last_sync_ts = stats_db.get_meta("last_sync_ts")
     last_sync_err = stats_db.get_meta("last_sync_err") or ""
     earliest = stats_db.earliest_date()
+
+    # 今日 / 昨日数据（不受 days 范围限制，直接从 db 查）
+    today_str = today.strftime("%Y-%m-%d")
+    yesterday_str = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    extra_dates = stats_db.get_range(yesterday_str, today_str)
+    extra_map = {r["date"]: r for r in extra_dates}
+    today_row = extra_map.get(today_str)
+    yesterday_row = extra_map.get(yesterday_str)
+
     return JSONResponse({
         "days": days,
         "rows": rows,
@@ -695,6 +708,16 @@ def api_stats(days: int = 7) -> JSONResponse:
             "gross_pnl": round(total_pnl, 4),
             "fee": round(total_fee, 4),
             "net_pnl": round(total_pnl + total_fee, 4),
+        },
+        "today": {
+            "date": today_str,
+            "trades": today_row["trades"] if today_row else 0,
+            "net_pnl": today_row["net_pnl"] if today_row else 0.0,
+        },
+        "yesterday": {
+            "date": yesterday_str,
+            "trades": yesterday_row["trades"] if yesterday_row else 0,
+            "net_pnl": yesterday_row["net_pnl"] if yesterday_row else 0.0,
         },
         "last_sync_ts": int(last_sync_ts) if last_sync_ts else None,
         "last_sync_err": last_sync_err,

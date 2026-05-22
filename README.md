@@ -49,7 +49,7 @@
 ### 2. 安装
 
 ```bash
-git clone https://github.com/<your-org>/okx-bot.git
+git clone git@github.com:flowliu/okx-bot.git
 cd okx-bot
 
 python3 -m venv .venv
@@ -84,31 +84,7 @@ python -m uvicorn webui:app --host 0.0.0.0 --port 8765
 - 「Prompt」tab 调整 AI 提示词（保存即热生效，无需重启）
 - 登录页右上角可切换 **中文 / English**
 
-### 5. Docker 部署（推荐生产用）
-
-```bash
-# 准备 .env（如还没准备）
-cp .env.example .env
-vim .env   # 填入凭证
-
-# 一键启动
-docker compose up -d
-
-# 查看日志
-docker compose logs -f
-
-# 停止
-docker compose down
-```
-
-镜像：`orbitai:1.0.0`，默认绑 `127.0.0.1:8765`（仅本机访问，安全）。
-持久化数据全在 `./data/` 目录，删容器不丢数据。
-
-公网访问请套 Nginx/Caddy 反代 + HTTPS，并把 ports 改成 `"8765:8765"`。
-
-时区默认 `Asia/Shanghai`，按部署地区在 `docker-compose.yml` 修改 `TZ` 环境变量（影响每日收益聚合）。
-
-### 6. 命令行使用（不用 Web UI 也行）
+### 5. 命令行使用（不用 Web UI 也行）
 
 ```bash
 # 直接跑 Bot

@@ -85,7 +85,8 @@
   <header class="bg-white border-b shadow-sm">
     <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
       <h1 class="text-xl font-bold flex items-center gap-3">
-        <span data-i18n="app_title">OKX Bot Console</span>
+        <span data-i18n="app_title">OrbitAI</span>
+        <span id="tz-pill" class="hidden text-xs font-normal px-2 py-1 rounded-full bg-slate-100 text-slate-600 mono"></span>
         <span id="status-pill" data-i18n="status_checking" class="text-xs px-2 py-1 rounded-full bg-gray-200">检测中…</span>
       </h1>
       <div class="flex items-center gap-3">
@@ -154,7 +155,7 @@
         </div>
 
         <!-- 汇总卡片 -->
-        <div id="stats-summary" class="grid grid-cols-4 gap-3 mb-4"></div>
+        <div id="stats-summary" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4"></div>
 
         <!-- 折线图 -->
         <div class="bg-slate-50 rounded-lg p-3 mb-4" style="height: 340px;">
@@ -289,6 +290,16 @@ async function loadAbout() {
       brand.appendChild(a);
       brand.append(' · ' + t('footer_suffix'));
       ver.textContent = 'v' + d.version;
+      // 顶栏时区 chip
+      const tzPill = document.getElementById('tz-pill');
+      if (tzPill && d.tz) {
+        const text = d.tz_offset
+          ? `${d.tz} ${d.tz_offset.slice(0,3)}:${d.tz_offset.slice(3)}`
+          : d.tz;
+        tzPill.textContent = text;
+        tzPill.title = 'Server timezone';
+        tzPill.classList.remove('hidden');
+      }
     } else {
       brand.textContent = d.name + ' — ' + (d.msg || '');
       brand.className = 'text-rose-600 font-medium';
@@ -698,7 +709,19 @@ async function loadStats() {
 
   // 汇总卡片
   const tot = data.total;
+  const td = data.today  || { net_pnl: 0, date: '' };
+  const yd = data.yesterday || { net_pnl: 0, date: '' };
   document.getElementById('stats-summary').innerHTML = `
+    <div class="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+      <div class="text-xs text-slate-500">${t('stats_today_net')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(td.net_pnl)}">${fmt(td.net_pnl)}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">${td.date}</div>
+    </div>
+    <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
+      <div class="text-xs text-slate-500">${t('stats_yesterday_net')}</div>
+      <div class="text-2xl font-bold mono ${colorFor(yd.net_pnl)}">${fmt(yd.net_pnl)}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">${yd.date}</div>
+    </div>
     <div class="bg-slate-50 rounded-lg p-3">
       <div class="text-xs text-slate-500">${t('stats_total_trades')}</div>
       <div class="text-2xl font-bold mono">${tot.trades} / ${tot.closes}</div>
@@ -752,9 +775,10 @@ async function loadStats() {
   if (statsChart) statsChart.destroy();
   statsChart = new Chart(document.getElementById('stats-chart'), cfg);
 
-  // 明细表（最新的日期排最上面）
+  // 明细表（最新的日期排最上面，最多 15 行）
   const tbody = document.getElementById('stats-tbody');
-  tbody.innerHTML = data.rows.slice().reverse().map(r => `
+  const rowsForTable = data.rows.slice().reverse().slice(0, 15);
+  tbody.innerHTML = rowsForTable.map(r => `
     <tr class="border-b border-slate-100">
       <td class="px-3 py-2">${r.date}</td>
       <td class="px-3 py-2 text-right">${r.trades}</td>
