@@ -920,6 +920,56 @@ def _ai_handle_slot_state(slot, pending_map):
             db.ai_slot_update(slot["id"], phase="open", close_ord_id=None)
 
 
+def _ai_auto_cancel(last_px: float) -> tuple[int, int]:
+    """轮询期间的自动撤单策略，返回 (drift_cancelled, stale_cancelled)。
+
+    两条规则只针对 phase='open' 的未成交开仓单：
+      1) 漂移：|open_price - last_px| / last_px > AI_AUTO_CANCEL_DRIFT_PCT
+      2) 陈旧：now - created_at > AI_AUTO_CANCEL_STALE_SEC
+
+    撤掉的 slot 标记为 cancelled，不影响已成交持仓的 close 单。
+    下一轮 AI 决策（最多 60s 后）会重新铺梯度，让出来的保证金可被复用。
+    """
+    if not config_loader.get("AI_AUTO_CANCEL"):
+        return 0, 0
+    drift_thr = float(config_loader.get("AI_AUTO_CANCEL_DRIFT_PCT") or 0.012)
+    stale_thr = int(config_loader.get("AI_AUTO_CANCEL_STALE_SEC") or 300)
+    now = int(time.time())
+    drift_n = 0
+    stale_n = 0
+    for s in db.ai_slots_active():
+        if s["phase"] != "open" or not s.get("open_ord_id"):
+            continue
+        drift = abs(s["open_price"] - last_px) / last_px if last_px > 0 else 0
+        age = now - int(s.get("created_at") or now)
+        reason = None
+        if drift > drift_thr:
+            reason = f"漂移 {drift * 100:.2f}% > {drift_thr * 100:.2f}%"
+        elif age > stale_thr:
+            reason = f"陈旧 {age}s > {stale_thr}s"
+        if not reason:
+            continue
+        try:
+            r = trade_api().cancel_order(instId=config.INST_ID, ordId=s["open_ord_id"])
+            if r.get("code") == "0":
+                db.ai_slot_update(s["id"], phase="cancelled")
+                logger.info(
+                    f"[AI 自动撤] slot#{s['id']} {s['side']} open={s['open_price']:.2f} "
+                    f"last_px={last_px:.2f} 理由={reason}"
+                )
+                if drift > drift_thr:
+                    drift_n += 1
+                else:
+                    stale_n += 1
+            else:
+                # 51400=订单不存在（已成交/已撤），同步本地状态
+                if r.get("code") in ("51400", "51401", "51402"):
+                    db.ai_slot_update(s["id"], phase="cancelled")
+        except Exception as e:
+            logger.warning(f"[AI 自动撤] slot#{s['id']} 撤单异常: {e}")
+    return drift_n, stale_n
+
+
 def ai_main_loop():
     """AI 完全驱动模式的主循环。"""
     global _margin_check_tick
@@ -980,6 +1030,14 @@ def ai_main_loop():
                         _ai_handle_slot_state(s, pending_map)
                     except Exception as e:
                         logger.exception(f"[AI] 处理 slot#{s['id']} 异常: {e}")
+
+                # 轮询期间自动撤单：漂移 / 陈旧的 open 单
+                try:
+                    d, s = _ai_auto_cancel(last_px)
+                    if d or s:
+                        logger.info(f"[AI 自动撤] 本轮撤掉 drift={d} stale={s}")
+                except Exception as e:
+                    logger.warning(f"[AI 自动撤] 异常: {e}")
 
                 # 看 AI 是否有新建议:激进模式下,每次 seq 变化都重发
                 advice = ai_advisor.current_advice()

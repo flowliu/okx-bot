@@ -59,3 +59,11 @@ AI_RECENTER_MIN_DRIFT_PCT = 0.05
 AI_DRIVEN_MODE = True
 # 单次 AI 调用最多接受多少对(long+short 合计上限),防止 AI 输出过多撑爆资金
 AI_MAX_ORDERS_PER_CALL = 20
+
+# AI 自动撤单（轮询期间执行，不等 60s 下一轮 AI 决策）：
+#   - 漂移撤：未成交 open 单距当前价超过 AI_AUTO_CANCEL_DRIFT_PCT → 立即撤
+#   - 陈旧撤：未成交 open 单挂着超过 AI_AUTO_CANCEL_STALE_SEC → 立即撤
+# 被撤的 slot 不影响已成交持仓的 close 单。
+AI_AUTO_CANCEL = True
+AI_AUTO_CANCEL_DRIFT_PCT = 0.012   # 1.2%
+AI_AUTO_CANCEL_STALE_SEC = 300     # 5 min

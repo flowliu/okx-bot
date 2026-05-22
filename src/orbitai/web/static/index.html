@@ -660,6 +660,9 @@ const FIELD_HINTS_ZH = {
   AI_MODEL: '模型名 (deepseek-chat)',
   AI_REQUEST_TIMEOUT: 'AI 请求超时(秒)',
   AI_VERIFY_SSL: 'SSL 校验 (true/false)',
+  AI_AUTO_CANCEL: 'AI 自动撤单总开关 (true/false)',
+  AI_AUTO_CANCEL_DRIFT_PCT: '漂移撤单阈值；open 价距当前价超过此比例则撤，如 0.012=1.2%',
+  AI_AUTO_CANCEL_STALE_SEC: '陈旧撤单阈值（秒）；open 单挂超过此时长未成交则撤，建议 ≥ 2× AI_INTERVAL_SEC',
   AI_PROVIDER: '大模型厂商，密钥在下方「大模型密钥」面板单独管理',
   INST_ID: 'OKX 永续合约标的',
   OKX_DOMAIN: 'API 域名：全球用 www / AWS 节点更稳 / 美澳用 us / 欧盟用 eea，区域不匹配会鉴权失败',
@@ -681,6 +684,9 @@ const FIELD_HINTS_EN = {
   AI_MODEL: 'Model name (e.g. deepseek-chat)',
   AI_REQUEST_TIMEOUT: 'AI request timeout (sec)',
   AI_VERIFY_SSL: 'SSL verification (true/false)',
+  AI_AUTO_CANCEL: 'Master switch for AI auto-cancel (true/false)',
+  AI_AUTO_CANCEL_DRIFT_PCT: 'Drift threshold; cancel an unfilled open order whose price drifts more than this %, e.g. 0.012 = 1.2%',
+  AI_AUTO_CANCEL_STALE_SEC: 'Staleness threshold (sec); cancel an unfilled open order older than this. Recommended ≥ 2× AI_INTERVAL_SEC',
   AI_PROVIDER: 'LLM provider — API keys are managed in the "LLM Keys" panel below',
   INST_ID: 'OKX perpetual swap symbol',
   OKX_DOMAIN: 'API domain: www = global, aws = AWS node, us = US/AU, eea = EU. Wrong region → auth fail.',
@@ -713,7 +719,8 @@ const CONFIG_GROUPS = {
           'GRID_COUNT', 'RANGE_PCT', 'STOP_LOSS_PCT', 'POLL_INTERVAL',
           'AI_KLINE_BAR', 'AI_KLINE_LIMIT', 'AI_MAX_ORDERS_PER_CALL'],
   ai: ['AI_PROVIDER', 'AI_MODEL', 'AI_DRIVEN_MODE', 'AI_ENABLED',
-       'AI_INTERVAL_SEC', 'AI_REQUEST_TIMEOUT', 'AI_VERIFY_SSL'],
+       'AI_INTERVAL_SEC', 'AI_REQUEST_TIMEOUT', 'AI_VERIFY_SSL',
+       'AI_AUTO_CANCEL', 'AI_AUTO_CANCEL_DRIFT_PCT', 'AI_AUTO_CANCEL_STALE_SEC'],
 };
 
 function renderField(k, v) {

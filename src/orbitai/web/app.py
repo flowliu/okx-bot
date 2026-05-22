@@ -120,6 +120,10 @@ EDITABLE_KEYS = {
     "AI_INTERVAL_SEC": int, "AI_KLINE_BAR": str, "AI_KLINE_LIMIT": int,
     "AI_MAX_ORDERS_PER_CALL": int,
     "AI_REQUEST_TIMEOUT": int, "AI_VERIFY_SSL": bool,
+    # AI 自动撤单
+    "AI_AUTO_CANCEL": bool,
+    "AI_AUTO_CANCEL_DRIFT_PCT": float,
+    "AI_AUTO_CANCEL_STALE_SEC": int,
 }
 
 app = FastAPI(title="OKX Bot Console", docs_url=None, redoc_url=None, openapi_url=None)
