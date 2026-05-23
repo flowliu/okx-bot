@@ -108,6 +108,7 @@ EDITABLE_KEYS = {
     "INST_ID": str,
     # 第二行：厂商 + 模型
     "AI_PROVIDER": str,
+    "AI_PROVIDER_FALLBACK": str,
     "AI_MODEL": str,
     # 资金/杠杆
     "TOTAL_USDT": float, "LEVERAGE": int,
@@ -124,6 +125,11 @@ EDITABLE_KEYS = {
     "AI_AUTO_CANCEL": bool,
     "AI_AUTO_CANCEL_DRIFT_PCT": float,
     "AI_AUTO_CANCEL_STALE_SEC": int,
+    # 风控熔断
+    "MIN_MARGIN_RATIO": float,
+    "MARGIN_LOW_PAUSE_HOURS": float,
+    "MAX_DAILY_LOSS_USDT": float,
+    "DAILY_LOSS_PAUSE_HOURS": float,
 }
 
 app = FastAPI(title="OKX Bot Console", docs_url=None, redoc_url=None, openapi_url=None)
@@ -369,6 +375,82 @@ def api_status() -> JSONResponse:
         "pid": pid,
         "log_file": str(latest_log_file() or ""),
     })
+
+
+@app.get("/api/positions", dependencies=[Depends(require_login)])
+def api_positions() -> JSONResponse:
+    """实时持仓视图：账户保证金 + 双向持仓 + 当前挂单概况。"""
+    from orbitai.data.client import account_api, trade_api, market_api
+    inst_id = config_loader.get("INST_ID") or "ETH-USDT-SWAP"
+    result: dict[str, Any] = {
+        "inst_id": inst_id,
+        "ts": int(time.time()),
+        "last_px": None,
+        "balance": None,
+        "positions": [],
+        "orders": {"long": 0, "short": 0, "total": 0, "locked_notional": 0.0},
+        "error": None,
+    }
+    try:
+        tk = market_api().get_ticker(instId=inst_id)
+        if tk.get("code") == "0" and tk.get("data"):
+            result["last_px"] = float(tk["data"][0]["last"])
+    except Exception as e:
+        result["error"] = f"行情查询失败: {e}"
+    try:
+        bal = account_api().get_account_balance(ccy="USDT")
+        if bal.get("code") == "0" and bal.get("data"):
+            d = bal["data"][0]
+            details = d.get("details") or []
+            usdt = next((x for x in details if x.get("ccy") == "USDT"), {})
+            result["balance"] = {
+                "eq": float(usdt.get("eq") or 0),
+                "avail": float(usdt.get("availBal") or 0),
+                "frozen": float(usdt.get("frozenBal") or 0),
+                "imr": float(usdt.get("imr") or 0),
+                "upl": float(usdt.get("upl") or 0),
+                "mgn_ratio": float(d.get("mgnRatio") or 0),
+            }
+    except Exception as e:
+        result["error"] = (result["error"] or "") + f" 余额查询失败: {e}"
+    try:
+        pos = account_api().get_positions(instType="SWAP", instId=inst_id)
+        if pos.get("code") == "0":
+            for p in pos.get("data") or []:
+                qty = float(p.get("pos") or 0)
+                if abs(qty) < 1e-9:
+                    continue
+                result["positions"].append({
+                    "pos_side": p.get("posSide"),
+                    "pos": qty,
+                    "avg_px": float(p.get("avgPx") or 0),
+                    "upl": float(p.get("upl") or 0),
+                    "upl_ratio": float(p.get("uplRatio") or 0),
+                    "imr": float(p.get("imr") or 0),
+                    "lever": p.get("lever"),
+                })
+    except Exception as e:
+        result["error"] = (result["error"] or "") + f" 持仓查询失败: {e}"
+    try:
+        orders = trade_api().get_order_list(instType="SWAP", instId=inst_id)
+        if orders.get("code") == "0":
+            data = orders.get("data") or []
+            longs = [o for o in data if o.get("posSide") == "long"]
+            shorts = [o for o in data if o.get("posSide") == "short"]
+            ct_val = 0.1  # 暂时硬编码 ETH 张面值；通用版可调 get_instruments
+            locked = sum(
+                float(o.get("px") or 0) * float(o.get("sz") or 0) * ct_val
+                for o in data
+            )
+            result["orders"] = {
+                "long": len(longs),
+                "short": len(shorts),
+                "total": len(data),
+                "locked_notional": round(locked, 1),
+            }
+    except Exception as e:
+        result["error"] = (result["error"] or "") + f" 挂单查询失败: {e}"
+    return JSONResponse(result)
 
 
 @app.get("/api/preflight", dependencies=[Depends(require_login)])

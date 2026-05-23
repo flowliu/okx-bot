@@ -39,14 +39,12 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 
-def _current_provider() -> dict:
-    """返回当前选中 provider 的元数据 + key。"""
-    name = (config_loader.get("AI_PROVIDER") or "deepseek").lower()
+def _provider_by_name(name: str) -> dict | None:
+    """按名字组装 provider 元数据；未配 key / 未知 name 返回 None。"""
+    name = (name or "").lower().strip()
     meta = llm_keys.PROVIDERS.get(name)
     if meta is None:
-        # 配错回退到 deepseek
-        name = "deepseek"
-        meta = llm_keys.PROVIDERS["deepseek"]
+        return None
     return {
         "name": name,
         "url": meta["url"],
@@ -54,6 +52,43 @@ def _current_provider() -> dict:
         "default_model": meta["model"],
         "key": llm_keys.get_key(name),
     }
+
+
+def _current_provider() -> dict:
+    """主 provider；保持向后兼容。"""
+    p = _provider_by_name(config_loader.get("AI_PROVIDER") or "deepseek")
+    if p is not None:
+        return p
+    # 兜底
+    return _provider_by_name("deepseek") or {
+        "name": "deepseek", "url": "", "style": "openai",
+        "default_model": "deepseek-chat", "key": "",
+    }
+
+
+def _provider_chain() -> list[dict]:
+    """主 → 备 链。AI_PROVIDER_FALLBACK 是逗号分隔的备用 provider 列表。
+    自动去重、跳过未配 key 的。
+    """
+    seen: set[str] = set()
+    chain: list[dict] = []
+
+    def _add(name: str):
+        n = (name or "").lower().strip()
+        if not n or n in seen:
+            return
+        p = _provider_by_name(n)
+        if p is None or not p["key"]:
+            return  # 未知或未配 key，静默跳过
+        seen.add(n)
+        chain.append(p)
+
+    _add(config_loader.get("AI_PROVIDER") or "deepseek")
+    fallback = config_loader.get("AI_PROVIDER_FALLBACK") or ""
+    if isinstance(fallback, str):
+        for n in fallback.split(","):
+            _add(n.strip())
+    return chain
 
 # Prompt 模板从文件加载，UI 可以热修改。
 # 文件位于 DATA_DIR/prompts/scalp.txt（首次使用时自动从包内 default 模板复制）
@@ -343,6 +378,28 @@ def _volume_ratio(volumes: list[float], period: int = 20) -> float:
 # ============================================================
 # DeepSeek 调用
 # ============================================================
+def _build_feedback_line() -> str:
+    """构造给 AI 的反馈：最近一个 AI 周期内挂单的成交率 + 净利估算。
+    生成形如：
+      上一周期: 挂 20 单, 5 完成净利+0.85U, 8 已成交等平, 4 未成交, 3 自动撤(成交率 80%)
+    无数据时返回空串（首次启动）。
+    """
+    try:
+        interval = int(config_loader.get("AI_INTERVAL_SEC") or 60)
+        since = int(time.time()) - interval * 2  # 取上一个完整周期 + 当前窗
+        s = db.ai_slots_recent_summary(since)
+        if not s["n_total"]:
+            return ""
+        return (
+            f"上一周期挂 {s['n_total']} 单 | "
+            f"完成 {s['n_done']} (净利估≈{s['gross_pnl_estimate']:+.3f}U) | "
+            f"持仓中 {s['n_close']} | 未成交 {s['n_open']} | "
+            f"自动撤 {s['n_cancelled']} | 成交率 {s['fill_rate']*100:.0f}%"
+        )
+    except Exception:
+        return ""
+
+
 def _build_prompt(*, last_px, center, drift_pct, rsi14, ema20, ema60,
                   atr14=0.0, bb_up=0.0, bb_mid=0.0, bb_low=0.0, vol_ratio=1.0,
                   klines, bar) -> dict:
@@ -358,6 +415,7 @@ def _build_prompt(*, last_px, center, drift_pct, rsi14, ema20, ema60,
         # AI 完全驱动:从文件加载 prompt 模板,UI 可热修改
         max_n = config_loader.get("AI_MAX_ORDERS_PER_CALL")
         template = _load_prompt_template()
+        feedback = _build_feedback_line()
         user_msg = template.format(
             inst_id=config_loader.get("INST_ID"),
             bar=bar,
@@ -369,6 +427,7 @@ def _build_prompt(*, last_px, center, drift_pct, rsi14, ema20, ema60,
             vol_ratio=vol_ratio,
             kl_lines=kl_lines_text,
             max_n=max_n,
+            feedback=feedback,
         )
         max_tokens = 1500
     else:
@@ -458,12 +517,33 @@ def _http_post(url: str, body: dict, headers: dict, tag: str) -> Optional[str]:
 
 
 def _call_llm(payload: dict) -> Optional[str]:
-    """根据 AI_PROVIDER 把统一 payload(OpenAI 风格)翻译并发出。"""
-    prov = _current_provider()
-    if not prov["key"]:
-        logger.warning(f"[AI] provider={prov['name']} 未配置 API key,跳过本轮决策")
+    """主 provider 失败则按 AI_PROVIDER_FALLBACK 顺序重试。"""
+    chain = _provider_chain()
+    if not chain:
+        logger.warning("[AI] 整条 provider 链都没配 key,跳过本轮决策")
         return None
+    last_err = None
+    for idx, prov in enumerate(chain):
+        try:
+            raw = _call_one_provider(prov, payload)
+        except Exception as e:
+            last_err = e
+            logger.warning(f"[AI] provider={prov['name']} 调用异常: {e}")
+            raw = None
+        if raw is not None:
+            if idx > 0:
+                logger.info(f"[AI] fallback 到 provider={prov['name']} 成功（链第 {idx+1} 个）")
+            return raw
+        # 单 provider 失败：继续尝试下一个
+        if idx < len(chain) - 1:
+            nxt = chain[idx + 1]["name"]
+            logger.warning(f"[AI] provider={prov['name']} 返回空，尝试 fallback → {nxt}")
+    logger.warning(f"[AI] 链中 {len(chain)} 个 provider 全部失败")
+    return None
 
+
+def _call_one_provider(prov: dict, payload: dict) -> Optional[str]:
+    """对单个 provider 发请求并解析。失败返回 None。"""
     model = payload.get("model") or prov["default_model"]
     system_msg = ""
     user_msg = ""

@@ -387,8 +387,18 @@ def _fetch_order_state(ord_id: str, retries: int = 2) -> dict | None:
 
 def _fetch_pending_orders_map(retries: int = 2) -> dict | None:
     """批量拉所有 pending 订单,返回 {ordId: order_dict}。
-    返回 None 表示拉取失败(网络问题),调用方应当跳过本轮。
+    优先用 WebSocket cache（毫秒级+省 REST 配额），fallback 到 REST。
+    返回 None 表示拉取失败,调用方跳过本轮。
     """
+    # WS 优先
+    try:
+        from orbitai.data import ws_client
+        cache = ws_client.get_pending()
+        if cache is not None:
+            return cache
+    except Exception as e:
+        logger.warning(f"[WS] cache 读取异常,fallback REST: {e}")
+    # REST fallback
     for attempt in range(retries + 1):
         try:
             r = trade_api().get_order_list(instType="SWAP", instId=config.INST_ID)
@@ -469,10 +479,26 @@ def _check_stop_loss(last_px: float) -> bool:
     return False
 
 
-def _check_margin_ratio() -> bool:
-    """检查保证金率。返回 True 表示安全,False 表示低于阈值已告警。
+# 风控暂停截止时间（unix 秒）。任何写挂单流程进来都先检查 _is_paused()
+_paused_until_ts: float = 0.0
+_last_daily_loss_check: float = 0.0
 
-    cross 模式下,保证金率在 account_balance 的 mgnRatio 字段。
+
+def _is_paused() -> bool:
+    return _paused_until_ts > time.time()
+
+
+def _pause_for(hours: float, reason: str) -> None:
+    global _paused_until_ts
+    until = time.time() + hours * 3600
+    if until > _paused_until_ts:
+        _paused_until_ts = until
+        logger.error(f"⚠️ 风控暂停: {reason}（{hours}h，恢复时刻 {time.strftime('%H:%M', time.localtime(until))}）")
+
+
+def _check_margin_ratio() -> bool:
+    """保证金率检查。低于阈值时：撤所有 AI open 单 + 暂停 N 小时挂新单。
+    返回 True 表示安全，False 表示已触发风控。
     """
     try:
         r = account_api().get_account_balance()
@@ -489,14 +515,60 @@ def _check_margin_ratio() -> bool:
         mgn = float(mgn_ratio_str)
     except ValueError:
         return True
-    # OKX mgnRatio:数值越大越安全。低于阈值告警。
-    # 注意:无持仓时 mgnRatio 可能为 0 或非数,跳过
     if mgn <= 0:
         return True
-    if mgn < config.MIN_MARGIN_RATIO:
-        msg = f"保证金率 {mgn:.3f} 低于阈值 {config.MIN_MARGIN_RATIO},需关注是否减仓"
-        logger.warning(f"⚠️ {msg}")
-        notify.warn(msg, dedup_key="low_margin")
+    threshold = float(config_loader.get("MIN_MARGIN_RATIO") or 0.30)
+    if mgn < threshold:
+        msg = f"保证金率 {mgn:.3f} < 阈值 {threshold}：撤所有 open 单 + 暂停挂新单"
+        notify.alert(f"⚠️ {msg}", dedup_key="low_margin_action")
+        pause_h = float(config_loader.get("MARGIN_LOW_PAUSE_HOURS") or 1)
+        _pause_for(pause_h, f"保证金率低 {mgn:.3f}<{threshold}")
+        try:
+            cancel_all_orders_ai()
+        except Exception as e:
+            logger.warning(f"低保证金触发撤单失败: {e}")
+        return False
+    return True
+
+
+def _check_daily_loss() -> bool:
+    """日亏熔断：每 5 分钟拉一次今日成交账单，累计净亏超阈值则撤所有 + 暂停 N 小时。
+    返回 True 表示安全。
+    """
+    global _last_daily_loss_check
+    max_loss = float(config_loader.get("MAX_DAILY_LOSS_USDT") or 0)
+    if max_loss <= 0:
+        return True  # 没配阈值即关闭日亏熔断
+    now = time.time()
+    if now - _last_daily_loss_check < 300:
+        return not _is_paused()
+    _last_daily_loss_check = now
+    try:
+        from orbitai.cli import stats as stats_mod
+        from datetime import datetime
+        today = datetime.now().date()
+        start = datetime.combine(today, datetime.min.time())
+        bills = stats_mod.fetch_bills_in_range(
+            int(start.timestamp() * 1000),
+            int(now * 1000),
+        )
+        by_day = stats_mod.summarize_by_day(bills)
+        today_str = today.strftime("%Y-%m-%d")
+        net = float(by_day.get(today_str, {}).get("net_pnl", 0.0))
+    except Exception as e:
+        logger.warning(f"日亏熔断检查失败(忽略本轮): {e}")
+        return True
+    if -net >= max_loss:
+        pause_h = float(config_loader.get("DAILY_LOSS_PAUSE_HOURS") or 4)
+        notify.alert(
+            f"🛑 日亏熔断: 今日净 {net:+.2f} USDT 触达 -{max_loss}，撤所有 open 单 + 暂停 {pause_h}h",
+            dedup_key=f"daily_loss_{today_str}",
+        )
+        _pause_for(pause_h, f"当日净亏 {net:.2f}")
+        try:
+            cancel_all_orders_ai()
+        except Exception as e:
+            logger.warning(f"日亏熔断撤单失败: {e}")
         return False
     return True
 
@@ -982,6 +1054,12 @@ def ai_main_loop():
     logger.info(f"进入 AI 驱动主循环,轮询 {config_loader.get('POLL_INTERVAL')}s,AI 间隔 {config.AI_INTERVAL_SEC}s")
     notify.info(f"AI 驱动模式启动:{config.INST_ID} 资金 {config.TOTAL_USDT}U 杠杆 {config.LEVERAGE}x")
     ai_advisor.start()
+    # 启动 WebSocket private 频道（替代 REST 拉 pending 单）。失败时主循环自动 fallback REST
+    try:
+        from orbitai.data import ws_client
+        ws_client.start(config.INST_ID)
+    except Exception as e:
+        logger.warning(f"[WS] 启动失败,继续 REST 轮询: {e}")
 
     # 启动时拉一次价初始化单 slot 张数；网络波动会重试,不让 bot 直接挂掉
     sz = None
@@ -1039,19 +1117,32 @@ def ai_main_loop():
                 except Exception as e:
                     logger.warning(f"[AI 自动撤] 异常: {e}")
 
+                # 日亏熔断检查（内部 5min 节流，便宜）
+                _check_daily_loss()
+
                 # 看 AI 是否有新建议:激进模式下,每次 seq 变化都重发
                 advice = ai_advisor.current_advice()
                 if advice.seq != last_seen_seq and advice.seq > 0:
                     last_seen_seq = advice.seq
-                    # 撤所有 phase=open 的未成交单,按新 advice 重挂
-                    _ai_cancel_open_phase_slots()
-                    _ai_place_orders_from_advice(advice, last_px, sz)
+                    if _is_paused():
+                        remain = int(_paused_until_ts - time.time())
+                        logger.info(f"[AI seq={advice.seq}] 风控暂停中 {remain}s，跳过本轮挂单")
+                    else:
+                        # 撤所有 phase=open 的未成交单,按新 advice 重挂
+                        _ai_cancel_open_phase_slots()
+                        _ai_place_orders_from_advice(advice, last_px, sz)
 
             except Exception as e:
                 logger.exception(f"AI 主循环异常: {e}")
             time.sleep(config_loader.get('POLL_INTERVAL'))
     finally:
         ai_advisor.stop()
+
+    try:
+        from orbitai.data import ws_client
+        ws_client.stop()
+    except Exception:
+        pass
 
     logger.info("退出流程: 撤所有 AI open 单(持仓 close 单保留待平)")
     cancel_all_orders_ai()

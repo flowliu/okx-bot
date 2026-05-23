@@ -35,7 +35,10 @@ OKX_DOMAIN = "https://www.okx.com"
 
 # ===== AI 顾问 (DeepSeek) =====
 # 未配置 DEEPSEEK_API_KEY 时整个 AI 模块退化为「全部放行」,不影响主流程
-AI_PROVIDER = "deepseek"   # 模型厂商: deepseek/openai/anthropic/gemini/qwen/moonshot/glm
+AI_PROVIDER = "deepseek"   # 主模型厂商: deepseek/openai/anthropic/gemini/qwen/moonshot/glm
+# 备用 provider 链，逗号分隔。主 provider 调用失败时按顺序尝试。
+# 未配 key / 未知名字的项自动跳过。例: "openai,glm"
+AI_PROVIDER_FALLBACK = ""
 AI_ENABLED = True          # 总开关
 AI_INTERVAL_SEC = 60       # 决策刷新间隔(秒),默认 1 分钟
 AI_KLINE_BAR = "1m"        # K 线周期 1m/5m/15m/1H/4H/1D
@@ -67,3 +70,12 @@ AI_MAX_ORDERS_PER_CALL = 20
 AI_AUTO_CANCEL = True
 AI_AUTO_CANCEL_DRIFT_PCT = 0.012   # 1.2%
 AI_AUTO_CANCEL_STALE_SEC = 300     # 5 min
+
+# ===== 风控熔断 =====
+# 保证金率告警：低于此值会撤所有 open 单 + 暂停 N 小时
+MIN_MARGIN_RATIO = 0.30
+MARGIN_LOW_PAUSE_HOURS = 1
+# 日亏熔断：当日累计净亏 > 此值（USDT，正数）时撤所有 open 单 + 暂停 N 小时；
+# 设为 0 关闭熔断。持仓保留。
+MAX_DAILY_LOSS_USDT = 0
+DAILY_LOSS_PAUSE_HOURS = 4

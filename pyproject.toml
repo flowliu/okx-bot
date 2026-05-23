@@ -45,6 +45,7 @@ orbitai-bot       = "orbitai.cli.main:main"
 orbitai-stats     = "orbitai.cli.stats:main"
 orbitai-reset     = "orbitai.cli.reset:main"
 orbitai-check     = "orbitai.cli.check_conn:main"
+orbitai-backtest  = "orbitai.cli.backtest:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -102,8 +102,9 @@
       </div>
     </div>
     <nav class="max-w-7xl mx-auto px-6 flex gap-2 pb-2">
-      <button data-tab="logs"   data-i18n="tab_logs"   class="tab active px-4 py-1.5 rounded-lg text-sm bg-slate-200">日志</button>
-      <button data-tab="stats"  data-i18n="tab_stats"  class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">统计</button>
+      <button data-tab="logs"      data-i18n="tab_logs"      class="tab active px-4 py-1.5 rounded-lg text-sm bg-slate-200">日志</button>
+      <button data-tab="positions" data-i18n="tab_positions" class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">持仓</button>
+      <button data-tab="stats"     data-i18n="tab_stats"     class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">统计</button>
       <button data-tab="config" data-i18n="tab_config" class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">参数</button>
       <button data-tab="prompt" data-i18n="tab_prompt" class="tab px-4 py-1.5 rounded-lg text-sm bg-slate-200">Prompt</button>
     </nav>
@@ -131,6 +132,40 @@
         </div>
       </div>
       <div id="log-box" class="log-box mono text-xs rounded-lg h-[68vh] overflow-y-auto"></div>
+    </section>
+
+    <!-- 持仓 tab -->
+    <section id="tab-positions" class="hidden space-y-4">
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold" data-i18n="pos_title">持仓概览</h3>
+          <span id="pos-meta" class="text-xs text-slate-500 mono"></span>
+        </div>
+        <div id="pos-error" class="hidden text-xs text-rose-600 mono mb-3"></div>
+        <div id="pos-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+        <div class="mt-5">
+          <h4 class="font-medium text-sm mb-2" data-i18n="pos_positions_title">持仓明细</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-100 text-slate-600">
+                <tr>
+                  <th class="px-3 py-2 text-left"  data-i18n="pos_col_side">方向</th>
+                  <th class="px-3 py-2 text-right" data-i18n="pos_col_qty">数量(张)</th>
+                  <th class="px-3 py-2 text-right" data-i18n="pos_col_avg_px">均价</th>
+                  <th class="px-3 py-2 text-right" data-i18n="pos_col_upl">未实现盈亏</th>
+                  <th class="px-3 py-2 text-right" data-i18n="pos_col_upl_pct">收益率</th>
+                  <th class="px-3 py-2 text-right" data-i18n="pos_col_imr">占用保证金</th>
+                </tr>
+              </thead>
+              <tbody id="pos-tbody" class="mono"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mt-5">
+          <h4 class="font-medium text-sm mb-2" data-i18n="pos_orders_title">挂单概况</h4>
+          <div id="pos-orders-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+        </div>
+      </div>
     </section>
 
     <!-- 统计 tab -->
@@ -636,10 +671,13 @@ document.querySelectorAll('.tab').forEach(btn => {
     btn.classList.add('active');
     const t = btn.dataset.tab;
     document.getElementById('tab-logs').classList.toggle('hidden', t !== 'logs');
+    document.getElementById('tab-positions').classList.toggle('hidden', t !== 'positions');
     document.getElementById('tab-stats').classList.toggle('hidden', t !== 'stats');
     document.getElementById('tab-config').classList.toggle('hidden', t !== 'config');
     document.getElementById('tab-prompt').classList.toggle('hidden', t !== 'prompt');
     if (t === 'stats' && !statsLoaded) loadStats();
+    if (t === 'positions') startPositionsAutoRefresh();
+    else stopPositionsAutoRefresh();
   });
 });
 
@@ -651,6 +689,10 @@ const FIELD_HINTS_ZH = {
   RANGE_PCT: '网格区间(±)，如 0.04 表示 ±4%',
   STOP_LOSS_PCT: '止损百分比，如 0.05 表示 5%',
   POLL_INTERVAL: '主循环订单状态轮询间隔（秒），太小会撞 OKX 限频；建议 3-5',
+  MIN_MARGIN_RATIO: '保证金率告警阈值；低于该值会撤所有 open 单 + 暂停 N 小时，建议 0.30',
+  MARGIN_LOW_PAUSE_HOURS: '保证金低触发后暂停小时数',
+  MAX_DAILY_LOSS_USDT: '日亏熔断阈值（USDT，正数）；当日累计净亏达到此值会撤所有 open 单 + 暂停 N 小时；0=关闭',
+  DAILY_LOSS_PAUSE_HOURS: '日亏熔断后暂停小时数',
   AI_DRIVEN_MODE: 'AI 驱动模式 (true/false)',
   AI_ENABLED: 'AI 总开关',
   AI_INTERVAL_SEC: 'AI 调用间隔(秒)',
@@ -663,7 +705,8 @@ const FIELD_HINTS_ZH = {
   AI_AUTO_CANCEL: 'AI 自动撤单总开关 (true/false)',
   AI_AUTO_CANCEL_DRIFT_PCT: '漂移撤单阈值；open 价距当前价超过此比例则撤，如 0.012=1.2%',
   AI_AUTO_CANCEL_STALE_SEC: '陈旧撤单阈值（秒）；open 单挂超过此时长未成交则撤，建议 ≥ 2× AI_INTERVAL_SEC',
-  AI_PROVIDER: '大模型厂商，密钥在下方「大模型密钥」面板单独管理',
+  AI_PROVIDER: '主大模型厂商，密钥在下方「大模型密钥」面板单独管理',
+  AI_PROVIDER_FALLBACK: '备用厂商链（逗号分隔，主厂商失败时按序尝试），如 openai,glm；未配 key 的项会自动跳过',
   INST_ID: 'OKX 永续合约标的',
   OKX_DOMAIN: 'API 域名：全球用 www / AWS 节点更稳 / 美澳用 us / 欧盟用 eea，区域不匹配会鉴权失败',
 };
@@ -675,6 +718,10 @@ const FIELD_HINTS_EN = {
   RANGE_PCT: 'Grid range (±), e.g. 0.04 = ±4%',
   STOP_LOSS_PCT: 'Stop-loss percentage, e.g. 0.05 = 5%',
   POLL_INTERVAL: 'Order status polling interval (sec). Too small hits OKX rate limit; 3–5 recommended.',
+  MIN_MARGIN_RATIO: 'Margin ratio threshold; when falling below, cancel all open orders + pause N hours. 0.30 recommended.',
+  MARGIN_LOW_PAUSE_HOURS: 'Pause hours after low-margin trigger',
+  MAX_DAILY_LOSS_USDT: 'Daily loss circuit breaker (USDT, positive). When today net loss reaches this, cancel all open + pause N hours. 0 = off.',
+  DAILY_LOSS_PAUSE_HOURS: 'Pause hours after daily-loss trigger',
   AI_DRIVEN_MODE: 'AI-driven mode (true/false)',
   AI_ENABLED: 'AI master switch',
   AI_INTERVAL_SEC: 'AI decision interval (sec)',
@@ -687,7 +734,8 @@ const FIELD_HINTS_EN = {
   AI_AUTO_CANCEL: 'Master switch for AI auto-cancel (true/false)',
   AI_AUTO_CANCEL_DRIFT_PCT: 'Drift threshold; cancel an unfilled open order whose price drifts more than this %, e.g. 0.012 = 1.2%',
   AI_AUTO_CANCEL_STALE_SEC: 'Staleness threshold (sec); cancel an unfilled open order older than this. Recommended ≥ 2× AI_INTERVAL_SEC',
-  AI_PROVIDER: 'LLM provider — API keys are managed in the "LLM Keys" panel below',
+  AI_PROVIDER: 'Primary LLM provider — API keys are managed in the "LLM Keys" panel below',
+  AI_PROVIDER_FALLBACK: 'Fallback provider chain (comma-separated). On primary failure, tried in order. Unknown / unkeyed entries are skipped silently. e.g. "openai,glm"',
   INST_ID: 'OKX perpetual swap symbol',
   OKX_DOMAIN: 'API domain: www = global, aws = AWS node, us = US/AU, eea = EU. Wrong region → auth fail.',
 };
@@ -717,8 +765,10 @@ const FIELD_OPTIONS = {
 const CONFIG_GROUPS = {
   basic: ['OKX_DOMAIN', 'INST_ID', 'TOTAL_USDT', 'LEVERAGE',
           'GRID_COUNT', 'RANGE_PCT', 'STOP_LOSS_PCT', 'POLL_INTERVAL',
+          'MIN_MARGIN_RATIO', 'MARGIN_LOW_PAUSE_HOURS',
+          'MAX_DAILY_LOSS_USDT', 'DAILY_LOSS_PAUSE_HOURS',
           'AI_KLINE_BAR', 'AI_KLINE_LIMIT', 'AI_MAX_ORDERS_PER_CALL'],
-  ai: ['AI_PROVIDER', 'AI_MODEL', 'AI_DRIVEN_MODE', 'AI_ENABLED',
+  ai: ['AI_PROVIDER', 'AI_PROVIDER_FALLBACK', 'AI_MODEL', 'AI_DRIVEN_MODE', 'AI_ENABLED',
        'AI_INTERVAL_SEC', 'AI_REQUEST_TIMEOUT', 'AI_VERIFY_SSL',
        'AI_AUTO_CANCEL', 'AI_AUTO_CANCEL_DRIFT_PCT', 'AI_AUTO_CANCEL_STALE_SEC'],
 };
@@ -799,6 +849,98 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
   }
   setTimeout(() => msg.textContent = '', 5000);
 });
+
+// ---------- 持仓 ----------
+let posTimer = null;
+
+function fmtUSD(v) { return (v >= 0 ? '+' : '') + Number(v).toFixed(2); }
+
+async function loadPositions() {
+  const r = await API('/api/positions');
+  if (r.status === 401) { show('login'); return; }
+  if (!r.ok) return;
+  const d = await r.json();
+  document.getElementById('pos-meta').textContent = t('pos_meta', d.ts);
+  const errEl = document.getElementById('pos-error');
+  if (d.error) { errEl.textContent = d.error; errEl.classList.remove('hidden'); }
+  else errEl.classList.add('hidden');
+
+  const bal = d.balance || {};
+  const ord = d.orders || {};
+  document.getElementById('pos-cards').innerHTML = `
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${t('pos_card_last_px')}</div>
+      <div class="text-2xl font-bold mono">${d.last_px ? d.last_px.toFixed(2) : '-'}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">${d.inst_id}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${t('pos_card_eq')}</div>
+      <div class="text-2xl font-bold mono">${bal.eq ? bal.eq.toFixed(2) : '-'}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">upl ${fmtUSD(bal.upl || 0)}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${t('pos_card_avail')}</div>
+      <div class="text-2xl font-bold mono">${bal.avail ? bal.avail.toFixed(2) : '-'}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">frozen ${bal.frozen ? bal.frozen.toFixed(2) : '0'}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${t('pos_card_mgn')}</div>
+      <div class="text-2xl font-bold mono">${bal.mgn_ratio ? bal.mgn_ratio.toFixed(3) : '-'}</div>
+      <div class="text-[10px] text-slate-400 mono mt-0.5">imr ${bal.imr ? bal.imr.toFixed(2) : '0'}</div>
+    </div>
+  `;
+
+  const positions = d.positions || [];
+  const tbody = document.getElementById('pos-tbody');
+  if (positions.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-slate-400 font-sans">${t('pos_empty')}</td></tr>`;
+  } else {
+    tbody.innerHTML = positions.map(p => {
+      const sideTag = p.pos_side === 'long'
+        ? '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">long</span>'
+        : '<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700">short</span>';
+      const uplColor = colorFor(p.upl);
+      return `
+        <tr class="border-b border-slate-100">
+          <td class="px-3 py-2">${sideTag}</td>
+          <td class="px-3 py-2 text-right">${p.pos}</td>
+          <td class="px-3 py-2 text-right">${p.avg_px.toFixed(2)}</td>
+          <td class="px-3 py-2 text-right ${uplColor}">${fmtUSD(p.upl)}</td>
+          <td class="px-3 py-2 text-right ${uplColor}">${(p.upl_ratio * 100).toFixed(2)}%</td>
+          <td class="px-3 py-2 text-right">${p.imr.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('pos-orders-grid').innerHTML = `
+    <div class="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+      <div class="text-xs text-slate-500">${t('pos_card_orders_long')}</div>
+      <div class="text-2xl font-bold mono">${ord.long || 0}</div>
+    </div>
+    <div class="bg-rose-50 rounded-lg p-3 border border-rose-100">
+      <div class="text-xs text-slate-500">${t('pos_card_orders_short')}</div>
+      <div class="text-2xl font-bold mono">${ord.short || 0}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${t('pos_card_orders_total')}</div>
+      <div class="text-2xl font-bold mono">${ord.total || 0}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3">
+      <div class="text-xs text-slate-500">${t('pos_card_locked')}</div>
+      <div class="text-2xl font-bold mono">${(ord.locked_notional || 0).toFixed(0)}</div>
+    </div>
+  `;
+}
+
+function startPositionsAutoRefresh() {
+  stopPositionsAutoRefresh();
+  loadPositions();
+  posTimer = setInterval(loadPositions, 5000);
+}
+function stopPositionsAutoRefresh() {
+  if (posTimer) { clearInterval(posTimer); posTimer = null; }
+}
 
 // ---------- 统计 ----------
 let statsChart = null;
@@ -1028,6 +1170,8 @@ const PROMPT_PLACEHOLDERS = [
     '本轮最多可挂订单对数（AI_MAX_ORDERS_PER_CALL）', 'Max order pairs per round (AI_MAX_ORDERS_PER_CALL)', '20'],
   ['{kl_lines}',  true,  'text',
     '最近 K 线 OHLCV 多行文本（已含成交量）', 'Recent klines OHLCV (multi-line text incl. volume)', '10 lines'],
+  ['{feedback}',  false, 'text',
+    '上一周期挂单成交率 + 净利估算（AI 自我反馈用）', 'Last-cycle fill rate + estimated net P&L (for AI self-correction)', '挂 20 单 完成 5 ...'],
   ['{rsi14}',     false, 'float',
     'RSI(14) 相对强弱指标 (0~100)', 'RSI(14) — relative strength index (0–100)', '52.3'],
   ['{ema20}',     false, 'float',

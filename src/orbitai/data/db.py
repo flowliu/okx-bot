@@ -198,3 +198,43 @@ def ai_slots_by_phase(phase: str) -> list[sqlite3.Row]:
         return c.execute(
             "SELECT * FROM ai_slots WHERE phase=? ORDER BY id", (phase,)
         ).fetchall()
+
+
+def ai_slots_recent_summary(since_ts: int) -> dict:
+    """给 AI 反馈循环用：统计 since_ts 以来 slot 的成交/取消/完成数 + 累计净利。
+
+    fee 没记账（slot 表里不带），用近似估算：每对成交按 0.1% 双边 taker 费率
+    （real 数字 stats_db 里有，但跨表查更重，这里只给 AI 一个量级感）。
+    """
+    with conn() as c:
+        rows = c.execute(
+            "SELECT phase, side, open_price, close_price, sz, created_at "
+            "FROM ai_slots WHERE created_at >= ?", (since_ts,)
+        ).fetchall()
+    n_total = len(rows)
+    n_open = sum(1 for r in rows if r["phase"] == "open")
+    n_close = sum(1 for r in rows if r["phase"] == "close")
+    n_done = sum(1 for r in rows if r["phase"] == "done")
+    n_cancelled = sum(1 for r in rows if r["phase"] == "cancelled")
+    # 完成的 slot 近似净利（不算手续费）：long 是 close - open，short 反之
+    gross = 0.0
+    for r in rows:
+        if r["phase"] != "done":
+            continue
+        sz = float(r["sz"])
+        op = float(r["open_price"])
+        cp = float(r["close_price"])
+        if r["side"] == "long":
+            gross += (cp - op) * sz * 0.1   # ctVal=0.1
+        else:
+            gross += (op - cp) * sz * 0.1
+    fill_rate = (n_done + n_close + n_cancelled) / n_total if n_total else 0.0
+    return {
+        "n_total": n_total,
+        "n_done": n_done,
+        "n_close": n_close,         # open 已成交，等 close 平仓
+        "n_open": n_open,           # 仍未成交挂着
+        "n_cancelled": n_cancelled, # 被自动撤掉
+        "fill_rate": round(fill_rate, 3),
+        "gross_pnl_estimate": round(gross, 4),
+    }
