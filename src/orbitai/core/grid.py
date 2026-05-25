@@ -1010,10 +1010,14 @@ def _ai_auto_cancel(last_px: float) -> tuple[int, int]:
     drift_n = 0
     stale_n = 0
     for s in db.ai_slots_active():
-        if s["phase"] != "open" or not s.get("open_ord_id"):
+        # sqlite3.Row 不支持 .get()，用 keys() 判断
+        keys = s.keys()
+        ord_id = s["open_ord_id"] if "open_ord_id" in keys else None
+        if s["phase"] != "open" or not ord_id:
             continue
         drift = abs(s["open_price"] - last_px) / last_px if last_px > 0 else 0
-        age = now - int(s.get("created_at") or now)
+        created_at = s["created_at"] if "created_at" in keys else now
+        age = now - int(created_at or now)
         reason = None
         if drift > drift_thr:
             reason = f"漂移 {drift * 100:.2f}% > {drift_thr * 100:.2f}%"
