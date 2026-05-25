@@ -497,7 +497,21 @@ def _http_post(url: str, body: dict, headers: dict, tag: str) -> Optional[str]:
             msg = e.read().decode("utf-8")[:300]
         except Exception:
             pass
-        logger.warning(f"[AI] {tag} HTTP {e.code}: {msg}")
+        # 不可恢复的账户/凭证错误 → ERROR + 去重告警，提醒立刻人工处理
+        if e.code in (401, 402, 403):
+            reason = {401: "凭证无效", 402: "账户余额不足", 403: "API 访问被禁/限"}[e.code]
+            try:
+                from orbitai.util import notify
+                notify.alert(
+                    f"🛑 LLM {tag} HTTP {e.code} {reason}：请到对应平台处理或在 webui 配 "
+                    f"AI_PROVIDER_FALLBACK 让备用模型接管。响应: {msg}",
+                    dedup_key=f"llm_{tag}_{e.code}",
+                )
+            except Exception:
+                pass
+            logger.error(f"🛑 [AI] {tag} HTTP {e.code} {reason}: {msg}")
+        else:
+            logger.warning(f"[AI] {tag} HTTP {e.code}: {msg}")
         return None
     except urllib.error.URLError as e:
         if not _ssl_insecure and isinstance(e.reason, ssl.SSLError):
